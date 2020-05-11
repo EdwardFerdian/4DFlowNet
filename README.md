@@ -7,8 +7,6 @@ Please find the pre-trained networks weights here:
 
 [4DFlowNet pre-trained weights](https://auckland.figshare.com/articles/Super_Resolution_4DFlow_MRI/12253424)
 
-[4DFlowNet pre-trained weights (temporary link)](https://bit.ly/2zgs3GX)
-
 
 If you are using later Tensorflow 1.x version that is not compatible with this version, please refer to Tensorflow backwards compatibility (tf.compat module). 
 
@@ -16,9 +14,31 @@ We are transitioning to Tensorflow 2.0. Stay tuned for an updated version.
 
 ## Prepare data
 
+To prepare 4D Flow MRI data to HDF5, go to the prepare_data/ directory and run the following script:
+
+    >> python prepare_data.py --input-dir [4DFlowMRI_CASE_DIRECTORY]
+
+    >> usage: prepare_mri_data.py [-h] --input-dir INPUT_DIR
+                           [--output-dir OUTPUT_DIR]
+                           [--output-filename OUTPUT_FILENAME]
+                           [--phase-pattern PHASE_PATTERN]
+                           [--mag-pattern MAG_PATTERN] [--fh-mul FH_MUL]
+                           [--rl-mul RL_MUL] [--in-mul IN_MUL]
+
+Notes: 
+*  The directory must contains the following structure:
+    [CASE_NAME]/[Magnitude_or_Phase]/[TriggerTime]
+* There must be exactly 3 Phase and 3 Magnitude directories 
+* To get the required directory structure, [DicomSort](https://dicomsort.com/) is recommended. Sort by SeriesDescription -> TriggerTime.
+* In our case, VENC and velocity direction is read from the SequenceName DICOM HEADER. Code might need to be adjusted if the criteria is different.
+
+
+
+
+
 ## Training
 
-(in progress)
+(under preparation)
 
 ## Prediction
 

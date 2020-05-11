@@ -76,5 +76,10 @@ if __name__ == '__main__':
         # Prepare to save
         predictions = np.expand_dims(predictions, axis=0) 
         prediction_utils.save_predictions(output_dir, output_filename, dataset.velocity_colnames, predictions, compression='gzip')
+        # Save spacing if the original info was there
+        if dataset.dx is not None:
+            new_spacing = dataset.dx / res_increase
+            new_spacing = np.expand_dims(new_spacing, axis=0) 
+            prediction_utils.save_to_h5(f'{output_dir}/{output_filename}', dataset.dx_colname, new_spacing, compression='gzip')
 
     print("Done!")

@@ -6,8 +6,9 @@ class ImageDataset():
         self.velocity_colnames   = ['u', 'v', 'w']
         self.venc_colnames = ['venc_u', 'venc_v', 'venc_w']
         self.mag_colnames  = ['mag_u', 'mag_v', 'mag_w']
+        self.dx_colname = 'dx'
 
-    def _set_images(self, velocity_images, mag_images, venc):
+    def _set_images(self, velocity_images, mag_images, venc, dx):
         '''
             Called by load_vectorfield
         '''
@@ -28,6 +29,7 @@ class ImageDataset():
         self.venc = venc.astype('float32')
         # Calculate PX sensitivity to zero out the predictions later
         self.velocity_per_px = self.venc / 2048
+        self.dx = dx
 
     def _normalize(self, velocity, venc):
         return velocity / venc
@@ -55,18 +57,22 @@ class ImageDataset():
         mag_images = []
         vencs = []
         global_venc = 0
+        dx = None
 
         # Load the U, V, W component of LR, and MAG
-        for i in range(len(self.velocity_colnames)):                
-            with h5py.File(filepath, 'r') as hl:
+        with h5py.File(filepath, 'r') as hl:
+            if self.dx_colname in hl:
+                dx = hl.get(self.dx_colname)[idx]
+            
+            for i in range(len(self.velocity_colnames)):                
                 w = np.asarray(hl.get(self.velocity_colnames[i])[idx])
                 mag_w = np.asarray(hl.get(self.mag_colnames[i])[idx])
                 w_venc = np.asarray(hl.get(self.venc_colnames[i])[idx])
             
-            # add them to the list
-            lowres_images.append(w)
-            mag_images.append(mag_w)
-            vencs.append(w_venc)
+                # add them to the list
+                lowres_images.append(w)
+                mag_images.append(mag_w)
+                vencs.append(w_venc)
 
         # /end of u,v,w loop
         global_venc = np.max(vencs)
@@ -76,5 +82,5 @@ class ImageDataset():
         mag_images = np.asarray(mag_images)
 
         # Setup the class properties
-        self._set_images(lowres_images, mag_images, global_venc)
+        self._set_images(lowres_images, mag_images, global_venc, dx)
     
