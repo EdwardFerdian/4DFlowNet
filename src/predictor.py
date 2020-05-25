@@ -1,8 +1,8 @@
 import tensorflow as tf
 import numpy as np
 import time
-from SRLoader import SRLoader
-from PatchGenerator import PatchGenerator
+from Network.SRLoader import SRLoader
+from Network.PatchGenerator import PatchGenerator
 from utils import prediction_utils
 from utils.ImageDataset import ImageDataset
 
@@ -46,7 +46,7 @@ if __name__ == '__main__':
         print(f"Patchified. Nr of patches: {data_size} - {velocities[0].shape}")
 
         # Predict the patches
-        results = np.empty((0,patch_size*res_increase, patch_size*res_increase, patch_size*res_increase, 3))
+        results = np.zeros((0,patch_size*res_increase, patch_size*res_increase, patch_size*res_increase, 3))
         start_time = time.time()
 
         for current_idx in range(0, data_size, batch_size):

@@ -8,12 +8,10 @@ import tensorflow as tf
 import numpy as np
 import time
 import datetime
-import utility
-import h5util
-import loss_utils
+from . import utility, h5util, loss_utils
 import os
 import shutil
-import SR4DFlowNet as network
+from .SR4DFlowNet import SR4DFlowNet
 
 class TrainerSetup:
     # constructor
@@ -60,7 +58,7 @@ class TrainerSetup:
         w_mag = tf.expand_dims(self.w_mag, 4)
 
         # network & output
-        net = network.SR4DFlowNet(res_increase)
+        net = SR4DFlowNet(res_increase)
         self.predictions = net.build_network(u, v, w, u_mag, v_mag, w_mag)
         
         u_pred = self.predictions[:,:,:,:,0]

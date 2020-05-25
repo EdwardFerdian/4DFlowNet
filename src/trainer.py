@@ -2,8 +2,8 @@ import numpy as np
 import tensorflow as tf
 import time
 import h5py
-import PatchHandler3D as zh
-import TrainerSetup as trainerSetup
+from Network.PatchHandler3D import PatchHandler3D
+from Network.TrainerSetup import TrainerSetup
 
 def load_indexes(index_file):
     indexes = np.genfromtxt(index_file, delimiter=',', skip_header=True, dtype='unicode') # 'unicode' or None
@@ -40,18 +40,18 @@ if __name__ == "__main__":
     tf.reset_default_graph()  
 
     # the data pipeline will zoom the data
-    z = zh.PatchHandler3D(data_dir, patch_size, res_increase, batch_size, mask_threshold)
+    z = PatchHandler3D(data_dir, patch_size, res_increase, batch_size, mask_threshold)
     iterator = z.initialize_dataset(trainset, training=True)
 
     # VALIDATION iterator
-    valdh = zh.PatchHandler3D(data_dir, patch_size, res_increase, batch_size, mask_threshold)
+    valdh = PatchHandler3D(data_dir, patch_size, res_increase, batch_size, mask_threshold)
     val_iterator = valdh.initialize_dataset(valset, training=False)
 
     # ------- Main Network ------
     print('\nBuilding network model...')
 
     print("4DFlowNet Patch {}, lr {}, batch {}".format(patch_size, initial_learning_rate, batch_size))
-    network = trainerSetup.TrainerSetup(patch_size, res_increase, initial_learning_rate, quicksave_enable=QUICKSAVE, network_name=network_name)
+    network = TrainerSetup(patch_size, res_increase, initial_learning_rate, quicksave_enable=QUICKSAVE, network_name=network_name)
     session = network.init_model_dir()
     network.train_network(train_iterator=iterator, val_iterator=val_iterator, n_epoch=epochs)
 

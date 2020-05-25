@@ -34,16 +34,12 @@ class PatchGenerator():
         """
             Reconstruct the 3-velocity components back to its original shape
         """
-        u_pred = results[:,:,:,:,0]
-        v_pred = results[:,:,:,:,1]
-        w_pred = results[:,:,:,:,2]
+        prediction_u = self._patchup_with_overlap(results[:,:,:,:,0], self.nr_x, self.nr_y, self.nr_z)
+        prediction_v = self._patchup_with_overlap(results[:,:,:,:,1], self.nr_x, self.nr_y, self.nr_z)
+        prediction_w = self._patchup_with_overlap(results[:,:,:,:,2], self.nr_x, self.nr_y, self.nr_z)
 
-        prediction_u = self._patchup_with_overlap(u_pred, self.nr_x, self.nr_y, self.nr_z)
-        prediction_v = self._patchup_with_overlap(v_pred, self.nr_x, self.nr_y, self.nr_z)
-        prediction_w = self._patchup_with_overlap(w_pred, self.nr_x, self.nr_y, self.nr_z)
-
-        predictions = np.stack((prediction_u, prediction_v, prediction_w), axis=3)
-        return predictions
+        #return predictions
+        return prediction_u, prediction_v, prediction_w
 
     def _pad_to_patch_size_with_overlap(self, img):
         """

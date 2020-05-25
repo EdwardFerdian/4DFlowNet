@@ -1,5 +1,5 @@
 import tensorflow as tf
-import SR4DFlowNet as network
+from .SR4DFlowNet import SR4DFlowNet
 
 class SRLoader():
     def __init__(self, model_dir, patch_size, res_increase):
@@ -25,7 +25,7 @@ class SRLoader():
         w_mag = tf.expand_dims(self.w_mag, 4)
 
         # network & output
-        net = network.SR4DFlowNet(res_increase)
+        net = SR4DFlowNet(res_increase)
         self.predictions = net.build_network(u, v, w, u_mag, v_mag, w_mag)
 
         # print('Restoring 4DFlowNet')
