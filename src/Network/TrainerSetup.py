@@ -15,12 +15,15 @@ from .SR4DFlowNet import SR4DFlowNet
 
 class TrainerSetup:
     # constructor
-    def __init__(self, patch_size, res_increase, initial_learning_rate=1e-4, quicksave_enable=True, network_name='4DFlowNet'):
+    def __init__(self, patch_size, res_increase, initial_learning_rate=1e-4, quicksave_enable=True, network_name='4DFlowNet', benchmark_iterator=None):
         
         div_weight = 1e-2
+        low_resblock = 4
+        hi_resblock = 4
 
         self.network_name = network_name
         self.QUICKSAVE_ENABLED = quicksave_enable
+        self.benchmark_iterator = benchmark_iterator
         
         self.iter_per_epoch = 100
         self.overall_data_read = 0
@@ -59,7 +62,7 @@ class TrainerSetup:
 
         # network & output
         net = SR4DFlowNet(res_increase)
-        self.predictions = net.build_network(u, v, w, u_mag, v_mag, w_mag)
+        self.predictions = net.build_network(u, v, w, u_mag, v_mag, w_mag, low_resblock=low_resblock, hi_resblock=hi_resblock)
         
         u_pred = self.predictions[:,:,:,:,0]
         v_pred = self.predictions[:,:,:,:,1]
@@ -142,7 +145,7 @@ class TrainerSetup:
         utility.log_to_file(self.logfile, f'Network: {self.network_name}\n')
         utility.log_to_file(self.logfile, f'learning rate: {self.learning_rate}\n')
         # utility.log_to_file(self.logfile, f'batch size: {self.batch_size}\n')
-        utility.log_to_file(self.logfile, f'epoch, train_err, val_err, train_rel_err, val_rel_err, best_model\n')
+        utility.log_to_file(self.logfile, f'epoch, train_err, val_err, train_rel_err, val_rel_err, best_model, benchmark_err, benchmark_rel_err\n')
 
     def _update_summary_logging(self, epoch, epoch_loss, epoch_relloss, is_training):
         """
@@ -161,45 +164,48 @@ class TrainerSetup:
         print(f'Restoring model {model_name}')
         self.saver.restore(self.sess, tf.train.latest_checkpoint(model_dir))
         
-    def quicksave(self, val_iterator, next_batch, epoch_nr):
-        # log.info(f'Saving prediction on epoch {epoch_nr}')
+    def quicksave(self,next_batch, epoch_nr):
+        print("\nRunning quicksave for the 1st batch...")
+        # We are only doing 1 batch, to save time
+        
+        next_element = self.sess.run(next_batch)
+        batch_u, batch_uhr, batch_umag = next_element[0], next_element[1] , next_element[2]  # LR, HR, MAG
+        batch_v, batch_vhr, batch_vmag = next_element[3], next_element[4] , next_element[5]  
+        batch_w, batch_whr, batch_wmag = next_element[6], next_element[7] , next_element[8]  
+        batch_venc, batch_mask = next_element[9], next_element[10]
 
-        for i in range(2):
-            next_element = self.sess.run(next_batch)
+        tf_dict = { self.u: batch_u, self.u_hi: batch_uhr, self.u_mag: batch_umag, 
+                    self.v: batch_v, self.v_hi: batch_vhr, self.v_mag: batch_vmag, 
+                    self.w: batch_w, self.w_hi: batch_whr, self.w_mag: batch_wmag, 
+                    self.is_training: False, self.binary_mask: batch_mask }
+       
+       
+        var_to_run = [self.loss, self.rel_loss, self.predictions]
+        loss_val, rel_loss, preds = self.sess.run(var_to_run, feed_dict=tf_dict)
 
-            batch_u, batch_uhr, batch_umag = next_element[0], next_element[1] , next_element[2]  # LR, HR, MAG
-            batch_v, batch_vhr, batch_vmag = next_element[3], next_element[4] , next_element[5]  
-            batch_w, batch_whr, batch_wmag = next_element[6], next_element[7] , next_element[8]  
-            batch_venc, batch_mask = next_element[9], next_element[10]
+        quicksave_filename = f"quicksave_{self.network_name}.h5"
+        h5util.save_predictions(self.model_dir, quicksave_filename, "epoch", np.asarray([epoch_nr]), compression='gzip')
 
-            tf_dict = { self.u: batch_u, self.u_hi: batch_uhr, self.u_mag: batch_umag, 
-                        self.v: batch_v, self.v_hi: batch_vhr, self.v_mag: batch_vmag, 
-                        self.w: batch_w, self.w_hi: batch_whr, self.w_mag: batch_wmag, 
-                        self.is_training: False, self.binary_mask: batch_mask }
+        preds = np.expand_dims(preds, 0) # Expand dim to [epoch_nr, batch, ....]
+        h5util.save_predictions(self.model_dir, quicksave_filename, "u", preds[:, :,:,:,:, 0], compression='gzip')
+        h5util.save_predictions(self.model_dir, quicksave_filename, "v", preds[:, :,:,:,:, 1], compression='gzip')
+        h5util.save_predictions(self.model_dir, quicksave_filename, "w", preds[:, :,:,:,:, 2], compression='gzip')
+
+        print(f"Quicksave Loss: {loss_val:.5f} | Rel_err: {rel_loss:.2f}%")
+
+        if epoch_nr == 1:
+            h5util.save_predictions(self.model_dir, quicksave_filename, "lr_u", batch_u, compression='gzip')
+            h5util.save_predictions(self.model_dir, quicksave_filename, "lr_v", batch_v, compression='gzip')
+            h5util.save_predictions(self.model_dir, quicksave_filename, "lr_w", batch_w, compression='gzip')
+
+            h5util.save_predictions(self.model_dir, quicksave_filename, "hr_u", batch_uhr, compression='gzip')
+            h5util.save_predictions(self.model_dir, quicksave_filename, "hr_v", batch_vhr, compression='gzip')
+            h5util.save_predictions(self.model_dir, quicksave_filename, "hr_w", batch_whr, compression='gzip')
             
-            var_to_run = [self.loss, self.rel_loss, self.predictions]
-            loss_val, rel_loss, preds = self.sess.run(var_to_run, feed_dict=tf_dict)
-
-            quicksave_filename = f"quicksave_{self.network_name}.h5"
-            h5util.save_predictions(self.model_dir, quicksave_filename, "epoch", np.asarray([epoch_nr]), compression='gzip')
-
-            h5util.save_predictions(self.model_dir, quicksave_filename, "u", preds[:,:,:,:, 0], compression='gzip')
-            h5util.save_predictions(self.model_dir, quicksave_filename, "v", preds[:,:,:,:, 1], compression='gzip')
-            h5util.save_predictions(self.model_dir, quicksave_filename, "w", preds[:,:,:,:, 2], compression='gzip')
-
-            # log.info(f"Quicksave Loss: {loss_val:.5f} | Rel_err: {rel_loss:.2f}%")
-
-            if epoch_nr == 1:
-                h5util.save_predictions(self.model_dir, quicksave_filename, "lr_u", batch_u, compression='gzip')
-                h5util.save_predictions(self.model_dir, quicksave_filename, "lr_v", batch_v, compression='gzip')
-                h5util.save_predictions(self.model_dir, quicksave_filename, "lr_w", batch_w, compression='gzip')
-
-                h5util.save_predictions(self.model_dir, quicksave_filename, "hr_u", batch_uhr, compression='gzip')
-                h5util.save_predictions(self.model_dir, quicksave_filename, "hr_v", batch_vhr, compression='gzip')
-                h5util.save_predictions(self.model_dir, quicksave_filename, "hr_w", batch_whr, compression='gzip')
-                
-                h5util.save_predictions(self.model_dir, quicksave_filename, "venc", batch_venc, compression='gzip')
-                h5util.save_predictions(self.model_dir, quicksave_filename, "mask", batch_mask, compression='gzip')
+            h5util.save_predictions(self.model_dir, quicksave_filename, "venc", batch_venc, compression='gzip')
+            h5util.save_predictions(self.model_dir, quicksave_filename, "mask", batch_mask, compression='gzip')
+        
+        return loss_val, rel_loss
         
     def run_batch(self, next_batch, is_training):
         batch_u, batch_uhr, batch_umag = next_batch[0], next_batch[1] , next_batch[2]  # LR, HR, MAG
@@ -245,6 +251,10 @@ class TrainerSetup:
         self.sess.run(train_iterator.initializer)
         self.sess.run(val_iterator.initializer)
 
+        if self.QUICKSAVE_ENABLED and self.benchmark_iterator is not None:
+            next_benchmark_set = self.benchmark_iterator.get_next()
+            self.sess.run(self.benchmark_iterator.initializer)
+
         previous_loss = np.inf
         for epoch in range(n_epoch):
             # ------------------------------- Training -------------------------------
@@ -276,18 +286,19 @@ class TrainerSetup:
             log_line = f'{epoch+1},{train_loss:.7f},{val_loss:.7f},{train_relloss:.2f}%,{val_relloss:.2f}%'
             # Save criteria 
             if avg_relloss < previous_loss:
-                save_path = self.saver.save(self.sess, self.model_path)
-                # print("\nModel saved in: %s" % save_path)
+                self.saver.save(self.sess, self.model_path)
                 
                 # Update best acc
                 previous_loss = avg_relloss
+                
+                # logging
                 message +=  ' **' # Mark as saved
                 log_line += ',**'
 
                 if self.QUICKSAVE_ENABLED:
-                    # self.benchmark = Benchmark(self.benchmark_path, self.model_dir, self.network_name, self.batch_size)
-                    self.quicksave(val_iterator, next_val, epoch+1)
-                    self.sess.run(val_iterator.initializer) # reset iterator
+                    quick_loss, quick_relloss = self.quicksave(next_benchmark_set, epoch+1)
+                    log_line += f', {quick_loss:.7f}, {quick_relloss:.2f}%'
+                    self.sess.run(self.benchmark_iterator.initializer) # reset iterator
 
             print(message)
             utility.log_to_file(self.logfile, log_line+"\n")
@@ -304,42 +315,33 @@ class TrainerSetup:
 
         total_loss = []
         total_relloss = []
-        total_data = 0
-
+        
         read_all_data = True
         if is_training:
             read_all_data = False
 
         try:
             i = 0
-            # --- run all batch in dataset
             # while True:
             while i < self.iter_per_epoch or read_all_data:
                 # we can use a while loop because the iterator is exhaustive
                 next_batch = self.sess.run(next_element)
-                # batch_loss, batch_relloss, n_per_batch = self.run_batch(next_batch, is_training=is_training)
-                batch_loss, batch_relloss, n_per_batch = i, i, 20
+                batch_loss, batch_relloss = self.run_batch(next_batch, is_training=is_training)
+                # batch_loss, batch_relloss, n_per_batch = i, i, 20
+                n_per_batch = 20
 
                 # we do this because n_per_batch in the last batch may be different
                 total_loss.append(batch_loss)
                 total_relloss.append(batch_relloss)
 
-                total_data    += n_per_batch
-                # print(self.train.global_step)
-
                 if is_training:
                     message = f"Epoch {epoch+1} Train batch {i+1}/{self.iter_per_epoch} | loss {batch_loss:.5f} ({batch_relloss:.1f} %) | Elapsed: {time.time()-start_loop:.2f} secs."
                     print(f"\r{message}", end='')
-                    # print("\rEpoch %d Train batch %d/%d | loss %.5f (%.2f %) | Elapsed: %.2f secs." % (epoch+1, i+1, self.iter_per_epoch, batch_loss, batch_relloss, time.time()-start_loop), end='')
-
-                    # print ("\rRead %d rows: [%-25s], batch loss %.5f (%.2f) | Elapsed: %.2f secs." % (total_data, '='*(i), batch_loss, batch_relloss, time.time()-start_loop), end='')
                     self.overall_data_read += n_per_batch # increase per number of batch trained
                     self.iteration_count += 1
                 else:
-                    message = f"Epoch {epoch+1} Val batch {i+1}/{self.iter_per_epoch} | loss {batch_loss:.5f} ({batch_relloss:.1f} %) | Elapsed: {time.time()-start_loop:.2f} secs."
+                    message = f"Epoch {epoch+1} Validation batch {i+1}/{self.iter_per_epoch} | loss {batch_loss:.5f} ({batch_relloss:.1f} %) | Elapsed: {time.time()-start_loop:.2f} secs."
                     print(f"\r{message}", end='')
-                    # print("\rEpoch %d Val batch %d/%d | loss %.5f (%.2f %) | Elapsed: %.2f secs." % (epoch+1, i+1, self.iter_per_epoch, batch_loss, batch_relloss, time.time()-start_loop), end='')
-                    # print ("\rEval %d rows: [%-25s], batch loss %.5f (%.2f) | Elapsed: %.2f secs." % (total_data, '='*(i), batch_loss, batch_relloss, time.time()-start_loop), end='')
                 i+=1 
 
         except tf.errors.OutOfRangeError:
