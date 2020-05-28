@@ -8,7 +8,6 @@ class PatchHandler3D():
         self.patch_size = patch_size
         self.res_increase = res_increase
         self.batch_size = batch_size
-        self.padding = (0,0,0)
         self.mask_threshold = mask_threshold
 
         self.data_directory = data_dir

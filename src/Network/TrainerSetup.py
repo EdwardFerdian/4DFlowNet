@@ -6,10 +6,12 @@ Date:   14/06/2019
 
 import tensorflow as tf
 import numpy as np
-import time
 import datetime
-from . import utility, h5util, loss_utils
+import time
+import shutil
+import os
 from .SR4DFlowNet import SR4DFlowNet
+from . import utility, h5util, loss_utils
 
 class TrainerSetup:
     # constructor
@@ -137,6 +139,19 @@ class TrainerSetup:
 
         # summary - Tensorboard stuff
         self._prepare_logfile_and_summary()
+
+        print("Copying source code to model directory...")
+        # Copy all the source file to the model dir for backup
+        directory_to_backup = [".", "Network"]
+        for directory in directory_to_backup:
+            files = os.listdir(directory)
+            for fname in files:
+                if fname.endswith(".py") or fname.endswith(".ipynb"):
+                    dest_fpath = os.path.join(self.model_dir,"source",directory, fname)
+                    os.makedirs(os.path.dirname(dest_fpath), exist_ok=True)
+
+                    shutil.copy2(f"{directory}/{fname}", dest_fpath)
+
         return self.sess
     
     def _prepare_logfile_and_summary(self):
@@ -151,7 +166,6 @@ class TrainerSetup:
         self.logfile = self.model_dir + '/loss.csv'
 
         utility.log_to_file(self.logfile, f'Network: {self.network_name}\n')
-        utility.log_to_file(self.logfile, f'learning rate: {self.learning_rate}\n')
         utility.log_to_file(self.logfile, f'epoch, train_err, val_err, train_rel_err, val_rel_err, best_model, benchmark_err, benchmark_rel_err\n')
 
     def _update_summary_logging(self, epoch, epoch_loss, epoch_relloss, is_training):
@@ -286,7 +300,7 @@ class TrainerSetup:
             # if self.iteration_count > 0 and self.iteration_count % 0 == 0:
                 self.adjust_learning_rate.eval(session=self.sess)
                 lr = self.sess.run(self.learning_rate)
-                print(f'Learning rate adjusted to {lr:.7f}')
+                print(f'Learning rate adjusted to {lr:.7f} - {time.ctime()}')
                 # self.iteration_count = 0
 
             start_loop = time.time()
@@ -319,7 +333,7 @@ class TrainerSetup:
                 message  += ' **' # Mark as saved
                 log_line += ',**'
 
-                if self.QUICKSAVE_ENABLED:
+                if self.QUICKSAVE_ENABLED and self.benchmark_iterator is not None:
                     quick_loss, quick_relloss = self.quicksave(next_benchmark_set, epoch+1)
                     message  += f' Benchmark loss: {quick_loss:.5f} ({quick_relloss:.1f} %)'
                     log_line += f', {quick_loss:.7f}, {quick_relloss:.2f}%'
