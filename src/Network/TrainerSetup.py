@@ -9,29 +9,31 @@ import numpy as np
 import time
 import datetime
 from . import utility, h5util, loss_utils
-import os
-import shutil
 from .SR4DFlowNet import SR4DFlowNet
 
 class TrainerSetup:
     # constructor
-    def __init__(self, patch_size, res_increase, initial_learning_rate=1e-4, quicksave_enable=True, network_name='4DFlowNet', benchmark_iterator=None):
-        
-        div_weight = 1e-2
-        low_resblock = 4
-        hi_resblock = 4
+    def __init__(self, patch_size, res_increase, initial_learning_rate=1e-4, quicksave_enable=True, network_name='4DFlowNet', benchmark_iterator=None, low_resblock=8, hi_resblock=4):
+        """
+            TrainerSetup constructor
+            Setup all the placeholders, network graph, loss functions and optimizer here.
+        """
+        div_weight = 1e-2 # Weighting for divergenc loss
 
-        self.network_name = network_name
-        self.QUICKSAVE_ENABLED = quicksave_enable
-        self.benchmark_iterator = benchmark_iterator
-        
-        self.iter_per_epoch = 100
-        self.overall_data_read = 0
+        # General param
         self.iteration_count = 0
-
         self.res_increase = res_increase
         hires_patch_size = patch_size * res_increase
-        
+
+        # Network
+        self.network_name = network_name
+
+        # Training params
+        self.QUICKSAVE_ENABLED = quicksave_enable
+        self.benchmark_iterator = benchmark_iterator
+        self.iter_per_epoch = 100
+
+        # ==== Tensorflow stuff ====
         self.sess = tf.Session()
 
         # Placeholders
@@ -60,7 +62,7 @@ class TrainerSetup:
         v_mag = tf.expand_dims(self.v_mag, 4)
         w_mag = tf.expand_dims(self.w_mag, 4)
 
-        # network & output
+        # ==== network & output ====
         net = SR4DFlowNet(res_increase)
         self.predictions = net.build_network(u, v, w, u_mag, v_mag, w_mag, low_resblock=low_resblock, hi_resblock=hi_resblock)
         
@@ -68,30 +70,31 @@ class TrainerSetup:
         v_pred = self.predictions[:,:,:,:,1]
         w_pred = self.predictions[:,:,:,:,2]
 
+        # Give identity so we can call them separately
         self.predictions = tf.identity(self.predictions, name="preds")
         self.u_pred = tf.identity(u_pred, name="u_")
         self.v_pred = tf.identity(v_pred, name="v_")
         self.w_pred = tf.identity(w_pred, name="w_")
 
-        # Loss function
-        speed_diff = self.calculate_mse(self.u_hi, self.v_hi, self.w_hi, self.u_pred, self.v_pred, self.w_pred)
-
-        # add divergence loss
+        # ===== Loss function =====
         self.summary_loss_name = "MSE+div2"
-        divergence_loss = loss_utils.calculate_divergence_loss2(self.u_hi, self.v_hi, self.w_hi, self.u_pred, self.v_pred, self.w_pred)
-        
-        print(f"Divergence loss2 * {div_weight}")
-        
-        # calculate total loss
+        # MSE
+        speed_diff = self.calculate_mse(self.u_hi, self.v_hi, self.w_hi, self.u_pred, self.v_pred, self.w_pred)
         mse = tf.reduce_mean(speed_diff)
-        div_loss = tf.reduce_mean(divergence_loss)
+        # Divergence loss
+        divergence_loss = loss_utils.calculate_divergence_loss2(self.u_hi, self.v_hi, self.w_hi, self.u_pred, self.v_pred, self.w_pred)
+        div_loss = tf.reduce_mean(divergence_loss)        
+        
+        # Calculate total loss
         self.loss = mse + div_weight * div_loss
         self.loss = tf.identity(self.loss, name="loss")
-        
+        print(f"Divergence loss2 * {div_weight}")
+
         # Evaluation metric
         self.rel_loss = loss_utils.calculate_relative_error(self.u_pred, self.v_pred, self.w_pred, self.u_hi, self.v_hi, self.w_hi, self.binary_mask)
         self.rel_loss = tf.identity(self.rel_loss, name="rel_loss")
 
+        # Prepare tensorboard summary
         tf.summary.scalar(f'{self.network_name}/Divergence_loss2', mse)
         tf.summary.scalar(f'{self.network_name}/MSE'             , div_loss)
 
@@ -106,17 +109,25 @@ class TrainerSetup:
         with tf.control_dependencies(update_ops):
             self.train_op = self.optimizer.minimize(self.loss)
 
-        # initialise the variables
+        # ==== initialize the variables ====
         print("Initializing session...")
         init = tf.global_variables_initializer()
         self.sess.run(init)
 
+        # Create tf saver
         self.saver = tf.train.Saver()
 
     def calculate_mse(self, u, v, w, u_pred, v_pred, w_pred):
+        """
+            Calculate Speed magnitude error
+        """
         return (u_pred - u) ** 2 +  (v_pred - v) ** 2 + (w_pred - w) ** 2
 
-    def init_model_dir(self):        
+    def init_model_dir(self):
+        """
+            Create model directory to save the weights with a [network_name]_[datetime] format
+            Also prepare logfile and tensorboard summary within the directory.
+        """
         timestamp = datetime.datetime.now().strftime("%Y%m%d-%H%M")
         self.unique_model_name = f'{self.network_name}_{timestamp}'
 
@@ -125,26 +136,22 @@ class TrainerSetup:
         self.model_path = f"{self.model_dir}/{self.network_name}"
 
         # summary - Tensorboard stuff
-        self._prepare_loss_and_summary()
-
-        # Copy files to the log dir
-        # shutil.copy2('Res3Dsr.py', os.path.join(self.model_dir, 'Res3Dsr.py'))
-        # shutil.copy2('loss_utils.py', os.path.join(self.model_dir, 'loss_utils.py'))
-        # shutil.copy2('zoomresmag3D_trainer.ipynb', os.path.join(self.model_dir, 'trainer.ipynb'))
-        # shutil.copy2('PatchHandler3D.py', os.path.join(self.model_dir, 'PatchHandler3D.py'))
+        self._prepare_logfile_and_summary()
         return self.sess
     
-    def _prepare_loss_and_summary(self):
+    def _prepare_logfile_and_summary(self):
+        """
+            Prepare csv logfile to keep track of the loss and Tensorboard summaries
+        """
         # summary - Tensorboard stuff
         self.merged = tf.summary.merge_all()
         self.train_writer = tf.summary.FileWriter(self.model_dir+'/tensorboard/train', self.sess.graph)
         self.val_writer = tf.summary.FileWriter(self.model_dir+'/tensorboard/validate', self.sess.graph)
-        # Prepare loss file
+        # Prepare log file
         self.logfile = self.model_dir + '/loss.csv'
 
         utility.log_to_file(self.logfile, f'Network: {self.network_name}\n')
         utility.log_to_file(self.logfile, f'learning rate: {self.learning_rate}\n')
-        # utility.log_to_file(self.logfile, f'batch size: {self.batch_size}\n')
         utility.log_to_file(self.logfile, f'epoch, train_err, val_err, train_rel_err, val_rel_err, best_model, benchmark_err, benchmark_rel_err\n')
 
     def _update_summary_logging(self, epoch, epoch_loss, epoch_relloss, is_training):
@@ -161,14 +168,20 @@ class TrainerSetup:
             self.val_writer.add_summary(summary, epoch)
     
     def restore_model(self, model_dir, model_name):
+        """
+            Restore the weights, given a known graph already built.
+        """
         print(f'Restoring model {model_name}')
         self.saver.restore(self.sess, tf.train.latest_checkpoint(model_dir))
         
     def quicksave(self,next_batch, epoch_nr):
-        print("\nRunning quicksave for the 1st batch...")
-        # We are only doing 1 batch, to save time
-        
+        """
+            Predict a batch of data from the benchmark_iterator.
+            This is saved under the model directory with the name quicksave_[network_name].h5
+            Quicksave is done everytime the best model is saved.
+        """
         next_element = self.sess.run(next_batch)
+        # We are only doing 1 batch
         batch_u, batch_uhr, batch_umag = next_element[0], next_element[1] , next_element[2]  # LR, HR, MAG
         batch_v, batch_vhr, batch_vmag = next_element[3], next_element[4] , next_element[5]  
         batch_w, batch_whr, batch_wmag = next_element[6], next_element[7] , next_element[8]  
@@ -191,9 +204,8 @@ class TrainerSetup:
         h5util.save_predictions(self.model_dir, quicksave_filename, "v", preds[:, :,:,:,:, 1], compression='gzip')
         h5util.save_predictions(self.model_dir, quicksave_filename, "w", preds[:, :,:,:,:, 2], compression='gzip')
 
-        print(f"Quicksave Loss: {loss_val:.5f} | Rel_err: {rel_loss:.2f}%")
-
         if epoch_nr == 1:
+            # Save the actual data only for the first epoch
             h5util.save_predictions(self.model_dir, quicksave_filename, "lr_u", batch_u, compression='gzip')
             h5util.save_predictions(self.model_dir, quicksave_filename, "lr_v", batch_v, compression='gzip')
             h5util.save_predictions(self.model_dir, quicksave_filename, "lr_w", batch_w, compression='gzip')
@@ -208,6 +220,10 @@ class TrainerSetup:
         return loss_val, rel_loss
         
     def run_batch(self, next_batch, is_training):
+        """
+            Retrieve elements from the iterator.next and run the batch
+            Returns loss and "acc"
+        """
         batch_u, batch_uhr, batch_umag = next_batch[0], next_batch[1] , next_batch[2]  # LR, HR, MAG
         batch_v, batch_vhr, batch_vmag = next_batch[3], next_batch[4] , next_batch[5]  
         batch_w, batch_whr, batch_wmag = next_batch[6], next_batch[7] , next_batch[8]  
@@ -222,7 +238,7 @@ class TrainerSetup:
             var_to_run = [self.train_op, self.merged, self.loss, self.rel_loss]
             _, summary, loss_value, rel_loss = self.sess.run(var_to_run, feed_dict=tf_dict)
             # For training, add it to summary directly on batch level
-            self.train_writer.add_summary(summary, self.overall_data_read)
+            self.train_writer.add_summary(summary, self.iteration_count)
         else:
             var_to_run = [self.loss, self.rel_loss]
             loss_value, rel_loss = self.sess.run(var_to_run, feed_dict=tf_dict)
@@ -230,6 +246,9 @@ class TrainerSetup:
         return loss_value, rel_loss
 
     def predict(self, u, v, w, u_mag, v_mag, w_mag):
+        """
+            Predict HighRes velocity components, given normalized velocity and magnitudes as input
+        """
         feed_dict = { self.u: u, self.v: v, self.w: w,
                       self.u_mag: u_mag, self.v_mag: v_mag, self.w_mag: w_mag }
         srImages = self.sess.run(self.predictions, feed_dict)
@@ -237,6 +256,10 @@ class TrainerSetup:
         return srImages
 
     def train_network(self, train_iterator, val_iterator, n_epoch):
+        """
+            Main training function. Receives trainining and validation dataset iterator.
+            When validation iterator is None, the training loss/accuracty is used for saved criteria instead.
+        """
         # ----- Run the training -----
         lr = self.sess.run(self.learning_rate)
 
@@ -258,7 +281,7 @@ class TrainerSetup:
         previous_loss = np.inf
         for epoch in range(n_epoch):
             # ------------------------------- Training -------------------------------
-            # Reduce learning rate every few steps
+            # Reduce learning rate every few epochs
             if epoch >= 5 and epoch % 30 == 0:
             # if self.iteration_count > 0 and self.iteration_count % 0 == 0:
                 self.adjust_learning_rate.eval(session=self.sess)
@@ -281,8 +304,9 @@ class TrainerSetup:
                 avg_loss = train_loss
                 avg_relloss = train_relloss
                 val_loss = 0 # no validation set
+                val_relloss = 0
 
-            message = f'\rEpoch {epoch+1}, Train loss: {train_loss:.5f} ({train_relloss:.1f} %), Val loss: {val_loss:.5f} ({val_relloss:.1f} %) - {time.time()-start_loop:.2f} secs'
+            message = f'\rEpoch {epoch+1}, Train loss: {train_loss:.5f} ({train_relloss:.1f} %), Val loss: {val_loss:.5f} ({val_relloss:.1f} %) - {time.time()-start_loop:.1f} secs'
             log_line = f'{epoch+1},{train_loss:.7f},{val_loss:.7f},{train_relloss:.2f}%,{val_relloss:.2f}%'
             # Save criteria 
             if avg_relloss < previous_loss:
@@ -292,11 +316,12 @@ class TrainerSetup:
                 previous_loss = avg_relloss
                 
                 # logging
-                message +=  ' **' # Mark as saved
+                message  += ' **' # Mark as saved
                 log_line += ',**'
 
                 if self.QUICKSAVE_ENABLED:
                     quick_loss, quick_relloss = self.quicksave(next_benchmark_set, epoch+1)
+                    message  += f' Benchmark loss: {quick_loss:.5f} ({quick_relloss:.1f} %)'
                     log_line += f', {quick_loss:.7f}, {quick_relloss:.2f}%'
                     self.sess.run(self.benchmark_iterator.initializer) # reset iterator
 
@@ -311,6 +336,12 @@ class TrainerSetup:
         print("==================== END TRAINING =================")
 
     def feed_all_batches(self, data_iterator, next_element, epoch, is_training):
+        """
+            Feed all batches from the iterator depends on training mode.
+            For validation, it will feed all the dataset.
+            On training, it will feed until a certain number of iterations or until the dataset is exhausted (pseudo-epoch).
+            The loss and acc is averaged over this pseudo-epoch.
+        """
         start_loop = time.time()
 
         total_loss = []
@@ -327,20 +358,16 @@ class TrainerSetup:
                 # we can use a while loop because the iterator is exhaustive
                 next_batch = self.sess.run(next_element)
                 batch_loss, batch_relloss = self.run_batch(next_batch, is_training=is_training)
-                # batch_loss, batch_relloss, n_per_batch = i, i, 20
-                n_per_batch = 20
-
-                # we do this because n_per_batch in the last batch may be different
+                
                 total_loss.append(batch_loss)
                 total_relloss.append(batch_relloss)
 
                 if is_training:
-                    message = f"Epoch {epoch+1} Train batch {i+1}/{self.iter_per_epoch} | loss {batch_loss:.5f} ({batch_relloss:.1f} %) | Elapsed: {time.time()-start_loop:.2f} secs."
+                    message = f"Epoch {epoch+1} Train batch {i+1}/{self.iter_per_epoch} | loss {batch_loss:.5f} ({batch_relloss:.1f} %) | Elapsed: {time.time()-start_loop:.1f} secs."
                     print(f"\r{message}", end='')
-                    self.overall_data_read += n_per_batch # increase per number of batch trained
                     self.iteration_count += 1
                 else:
-                    message = f"Epoch {epoch+1} Validation batch {i+1}/{self.iter_per_epoch} | loss {batch_loss:.5f} ({batch_relloss:.1f} %) | Elapsed: {time.time()-start_loop:.2f} secs."
+                    message = f"Epoch {epoch+1} Validation batch {i+1}/{self.iter_per_epoch} | loss {batch_loss:.5f} ({batch_relloss:.1f} %) | Elapsed: {time.time()-start_loop:.1f} secs."
                     print(f"\r{message}", end='')
                 i+=1 
 

@@ -18,31 +18,6 @@ class PatchHandler3D():
         self.mag_colnames  = ['mag_u','mag_v','mag_w']
         self.mask_colname  = 'mask'
 
-    def _set_images(self, lowres_images, hires_images, mag_images, venc, mask):
-        '''
-            Called by load_vectorfield
-        '''
-        # Normalize the values first
-        lowres_images = self._normalize(lowres_images, venc)
-        hires_images = self._normalize(hires_images, venc)
-        mag_images = mag_images / 4095. # Magnitude 0 .. 1
-
-        # Set the attributes
-        self.u = lowres_images[0].astype('float32')
-        self.v = lowres_images[1].astype('float32')
-        self.w = lowres_images[2].astype('float32')
-
-        self.u_hi = hires_images[0].astype('float32')
-        self.v_hi = hires_images[1].astype('float32')
-        self.w_hi = hires_images[2].astype('float32')
-        
-        self.mag_u = mag_images[0].astype('float32')
-        self.mag_v = mag_images[1].astype('float32')
-        self.mag_w = mag_images[2].astype('float32')
-
-        self.venc = venc.astype('float32')
-        self.hires_images = mask.astype('float32')
-
     def initialize_dataset(self, indexes, training):
         '''
             Input pipeline.
@@ -52,13 +27,12 @@ class PatchHandler3D():
        
         # ds = tf.data.Dataset.from_tensor_slices((filenames, lr_filenames, indexes))
         ds = tf.data.Dataset.from_tensor_slices((indexes))
-        print("Total dataset for 1 epoch:", len(indexes))
+        print("Total dataset:", len(indexes))
 
         if training:
             print("Training mode: shuffle")
             # Set a buffer equal to dataset size to ensure randomness
             ds = ds.shuffle(buffer_size=len(indexes)) 
-            # ds = ds.shuffle(buffer_size=1000) 
 
         ds = ds.map(self.load_data_using_patch_index, num_parallel_calls=8)
         
@@ -92,7 +66,6 @@ class PatchHandler3D():
 
         patch_size = self.patch_size
         hr_patch_size = self.patch_size * self.res_increase
-
         
         # ============ get the patch ============ 
         patch_index  = np.index_exp[x_start:x_start+patch_size, y_start:y_start+patch_size, z_start:z_start+patch_size]
@@ -148,7 +121,6 @@ class PatchHandler3D():
         global_venc = 0
 
         # Load the U, V, W component of HR, LR, and MAG
-        # for i in range(len(self.hr_colnames)):
         with h5py.File(hd5path, 'r') as hl:
             # Open the file once per row, Loop through all the HR column
             for i in range(len(self.hr_colnames)):
@@ -189,8 +161,6 @@ class PatchHandler3D():
             lowres_images[1].astype('float32'), hires_images[1].astype('float32'), mag_images[1].astype('float32'), \
             lowres_images[2].astype('float32'), hires_images[2].astype('float32'), mag_images[2].astype('float32'),\
             global_venc.astype('float32'), mask.astype('float32')
-
-    
     
     def _normalize(self, u, venc):
         return u / venc
