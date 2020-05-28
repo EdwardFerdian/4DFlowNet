@@ -22,7 +22,6 @@ class PatchHandler3D():
         '''
             Input pipeline.
             This function accepts a list of filenames with index to read.
-            The _training_data_load_wrapper will read the filename-index pair and load the data.
         '''
        
         # ds = tf.data.Dataset.from_tensor_slices((filenames, lr_filenames, indexes))

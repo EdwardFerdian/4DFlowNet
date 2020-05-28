@@ -306,7 +306,7 @@ class TrainerSetup:
                 val_loss = 0 # no validation set
                 val_relloss = 0
 
-            message = f'\rEpoch {epoch+1}, Train loss: {train_loss:.5f} ({train_relloss:.1f} %), Val loss: {val_loss:.5f} ({val_relloss:.1f} %) - {time.time()-start_loop:.1f} secs'
+            message = f'\rEpoch {epoch+1} Train loss: {train_loss:.5f} ({train_relloss:.1f} %), Val loss: {val_loss:.5f} ({val_relloss:.1f} %) - {time.time()-start_loop:.1f} secs'
             log_line = f'{epoch+1},{train_loss:.7f},{val_loss:.7f},{train_relloss:.2f}%,{val_relloss:.2f}%'
             # Save criteria 
             if avg_relloss < previous_loss:
