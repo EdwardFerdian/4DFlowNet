@@ -54,7 +54,7 @@ if __name__ == "__main__":
 
     # Bechmarking iterator, use to keep track of prediction progress per best model
     benchmark_iterator = None
-    if QUICKSAVE:
+    if QUICKSAVE and benchmark_file is not None:
         benchmark_set = load_indexes(benchmark_file)
         ph = PatchHandler3D(data_dir, patch_size, res_increase, batch_size, mask_threshold)
         benchmark_iterator = ph.initialize_dataset(benchmark_set, training=False)
