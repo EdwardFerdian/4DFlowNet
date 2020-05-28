@@ -64,7 +64,7 @@ class TrainerSetup:
 
         # ==== network & output ====
         net = SR4DFlowNet(res_increase)
-        self.predictions = net.build_network(u, v, w, u_mag, v_mag, w_mag, low_resblock=low_resblock, hi_resblock=hi_resblock)
+        self.predictions = net.build_network(u, v, w, u_mag, v_mag, w_mag, low_resblock, hi_resblock)
         
         u_pred = self.predictions[:,:,:,:,0]
         v_pred = self.predictions[:,:,:,:,1]

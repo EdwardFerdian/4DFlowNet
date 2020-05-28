@@ -4,7 +4,7 @@ class SR4DFlowNet():
     def __init__(self, res_increase):
         self.res_increase = res_increase
 
-    def build_network(self, u, v, w, u_mag, v_mag, w_mag, channel_nr=64, low_resblock=8, hi_resblock=4):
+    def build_network(self, u, v, w, u_mag, v_mag, w_mag, low_resblock=8, hi_resblock=4, channel_nr=64):
         # Prepare input layers
         speed = (u ** 2 + v ** 2 + w ** 2) ** 0.5
         mag = (u_mag ** 2 + v_mag ** 2 + w_mag ** 2) ** 0.5
