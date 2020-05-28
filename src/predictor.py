@@ -1,17 +1,17 @@
 import tensorflow as tf
 import numpy as np
 import time
-from SRLoader import SRLoader
-from PatchGenerator import PatchGenerator
+from Network.SRLoader import SRLoader
+from Network.PatchGenerator import PatchGenerator
 from utils import prediction_utils
 from utils.ImageDataset import ImageDataset
 
 if __name__ == '__main__':
-    input_dir = '../data'
+    data_dir = '../data'
     filename = 'example_data.h5'
-    
+ 
     output_dir = "../result"
-    output_filename = 'SR_result.h5'
+    output_filename = 'example_result.h5'
     
     model_dir = "../models/4DFlowNet"
     # Params
@@ -20,8 +20,12 @@ if __name__ == '__main__':
     batch_size = 8
     round_small_values = True
 
+    # Network
+    low_resblock=8
+    hi_resblock=4
+
     # Setting up
-    input_filepath = '{}/{}'.format(input_dir, filename)
+    input_filepath = '{}/{}'.format(data_dir, filename)
     pgen = PatchGenerator(patch_size, res_increase)
     dataset = ImageDataset()
 
@@ -31,7 +35,7 @@ if __name__ == '__main__':
 
     print(f"Loading 4DFlowNet: {res_increase}x upsample")
     # Load the network
-    network = SRLoader(model_dir, patch_size, res_increase)
+    network = SRLoader(model_dir, patch_size, res_increase, low_resblock, hi_resblock)
 
     # loop through all the rows in the input file
     for nrow in range(0, nr_rows):
@@ -46,7 +50,7 @@ if __name__ == '__main__':
         print(f"Patchified. Nr of patches: {data_size} - {velocities[0].shape}")
 
         # Predict the patches
-        results = np.empty((0,patch_size*res_increase, patch_size*res_increase, patch_size*res_increase, 3))
+        results = np.zeros((0,patch_size*res_increase, patch_size*res_increase, patch_size*res_increase, 3))
         start_time = time.time()
 
         for current_idx in range(0, data_size, batch_size):
@@ -66,17 +70,19 @@ if __name__ == '__main__':
         time_taken = time.time() - start_time
         print(f"\rProcessed {data_size}/{data_size} Elapsed: {time_taken:.2f} secs.")
 
-        # Denormalized the prediction
-        results = dataset.postprocess_result(results, zerofy=round_small_values)
+        for i in range (0,3):
+            v = pgen._patchup_with_overlap(results[:,:,:,:,0], pgen.nr_x, pgen.nr_y, pgen.nr_z)
+            
+            # Denormalized
+            v = v * dataset.venc 
+            if round_small_values:
+                # print(f"Zero out velocity component less than {dataset.velocity_per_px}")
+                # remove small velocity values
+                v[np.abs(v) < dataset.velocity_per_px] = 0
+            
+            v = np.expand_dims(v, axis=0) 
+            prediction_utils.save_to_h5(f'{output_dir}/{output_filename}', dataset.velocity_colnames[i], v, compression='gzip')
 
-        # Reconstruct the image from the patches
-        predictions = pgen.unpatchify(results)
-        print(f"Image reconstructed: {predictions.shape}")
-
-        # Prepare to save
-        predictions = np.expand_dims(predictions, axis=0) 
-        prediction_utils.save_predictions(output_dir, output_filename, dataset.velocity_colnames, predictions, compression='gzip')
-        # Save spacing if the original info was there
         if dataset.dx is not None:
             new_spacing = dataset.dx / res_increase
             new_spacing = np.expand_dims(new_spacing, axis=0) 

@@ -4,7 +4,7 @@ class SR4DFlowNet():
     def __init__(self, res_increase):
         self.res_increase = res_increase
 
-    def build_network(self, u, v, w, u_mag, v_mag, w_mag, channel_nr=64):
+    def build_network(self, u, v, w, u_mag, v_mag, w_mag, low_resblock=8, hi_resblock=4, channel_nr=64):
         # Prepare input layers
         speed = (u ** 2 + v ** 2 + w ** 2) ** 0.5
         mag = (u_mag ** 2 + v_mag ** 2 + w_mag ** 2) ** 0.5
@@ -28,14 +28,14 @@ class SR4DFlowNet():
         
         # LR space Resblocks
         rb = concat_layer
-        for i in range(8):
+        for i in range(low_resblock):
             rb = self.resnet_block(rb, "ResBlock", channel_nr, pad='SYMMETRIC')
 
         # Upsample
         rb = self.upsample3d(rb)
             
         # HR space Resblocks
-        for i in range(4):
+        for i in range(hi_resblock):
             rb = self.resnet_block(rb, "ResBlock", channel_nr, pad='SYMMETRIC')
 
         # Split into 3 separate path, 1 path for each velocity component
