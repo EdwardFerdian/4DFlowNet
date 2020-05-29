@@ -8,7 +8,6 @@ class PatchHandler3D():
         self.patch_size = patch_size
         self.res_increase = res_increase
         self.batch_size = batch_size
-        self.padding = (0,0,0)
         self.mask_threshold = mask_threshold
 
         self.data_directory = data_dir
@@ -21,10 +20,8 @@ class PatchHandler3D():
     def initialize_dataset(self, indexes, training):
         '''
             Input pipeline.
-            This function accepts a list of filenames with index to read.
+            This function accepts a list of filenames with index and patch locations to read.
         '''
-       
-        # ds = tf.data.Dataset.from_tensor_slices((filenames, lr_filenames, indexes))
         ds = tf.data.Dataset.from_tensor_slices((indexes))
         print("Total dataset:", len(indexes))
 
