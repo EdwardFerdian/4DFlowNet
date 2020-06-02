@@ -7,7 +7,7 @@ from utils import prediction_utils
 from utils.ImageDataset import ImageDataset
 
 
-def prepare_network(res_increase, low_resblock, hi_resblock):
+def prepare_network(patch_size, res_increase, low_resblock, hi_resblock):
     # Prepare input
     input_shape = (patch_size,patch_size,patch_size,1)
     u = tf.keras.layers.Input(shape=input_shape, name='u')
@@ -56,7 +56,7 @@ if __name__ == '__main__':
 
     print(f"Loading 4DFlowNet: {res_increase}x upsample")
     # Load the network
-    network = prepare_network(res_increase, low_resblock, hi_resblock)
+    network = prepare_network(patch_size, res_increase, low_resblock, hi_resblock)
     network.load_weights(model_path)
 
     # loop through all the rows in the input file
