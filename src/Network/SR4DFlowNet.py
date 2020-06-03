@@ -11,8 +11,6 @@ class SR4DFlowNet():
         mag = (u_mag ** 2 + v_mag ** 2 + w_mag ** 2) ** 0.5
         pcmr = mag * speed
 
-        print(u)
-
         phase = tf.keras.layers.concatenate([u,v,w])
         pc    = tf.keras.layers.concatenate([pcmr, mag, speed])
         
@@ -97,7 +95,6 @@ def conv3d(x, kernel_size, filters, padding='SYMMETRIC', activation=None, initia
         For tf padding, refer to: https://www.tensorflow.org/api_docs/python/tf/pad
 
     """
-    
     if padding == 'SYMMETRIC' or padding == 'REFLECT':
         p = (kernel_size - 1) // 2
         x = tf.pad(x, [[0,0],[p,p],[p,p], [p,p],[0,0]], padding)

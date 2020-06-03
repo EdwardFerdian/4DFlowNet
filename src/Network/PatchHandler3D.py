@@ -30,17 +30,18 @@ class PatchHandler3D():
             # Set a buffer equal to dataset size to ensure randomness
             ds = ds.shuffle(buffer_size=len(indexes)) 
 
-        ds = ds.map(self.load_data_using_patch_index, num_parallel_calls=8)
+        # ds = ds.map(self.load_data_using_patch_index, num_parallel_calls=8)
+        ds = ds.map(self.load_data_using_patch_index)
+        ds = ds.batch(batch_size=self.batch_size)
+        # # TODO: set option 
+        # # prefetch, n=number of items, not number of batch
+        # ds = ds.prefetch(self.batch_size)
         
-        # prefetch, n=number of items, not number of batch
-        ds = ds.batch(batch_size=self.batch_size).prefetch(16)
-            
-        # with initializable iterator, we have to re-init for every epoch
-        self.iterator = ds.make_initializable_iterator()
-        return self.iterator
+
+        return ds
     
     def load_data_using_patch_index(self, indexes):
-        return tf.py_func(func=self.load_patches_from_index_file, 
+        return tf.py_function(func=self.load_patches_from_index_file, 
             # U-LR, HR, MAG, V-LR, HR, MAG, W-LR, HR, MAG, venc, MASK
             inp=[indexes], 
                 Tout=[tf.float32, tf.float32, tf.float32,
@@ -48,11 +49,11 @@ class PatchHandler3D():
                     tf.float32, tf.float32, tf.float32,
                     tf.float32, tf.float32])
 
- 
     def load_patches_from_index_file(self, indexes):
         # Do typecasting, we need to make sure everything has the correct data type
-        lr_hd5path = '{}/{}'.format(self.data_directory, str(indexes[0], 'utf-8'))
-        hd5path    = '{}/{}'.format(self.data_directory, str(indexes[1], 'utf-8'))
+        # Solution for tf2: https://stackoverflow.com/questions/56122670/how-to-get-string-value-out-of-tf-tensor-which-dtype-is-string
+        lr_hd5path = '{}/{}'.format(self.data_directory, bytes.decode(indexes[0].numpy()))
+        hd5path    = '{}/{}'.format(self.data_directory, bytes.decode(indexes[1].numpy()))
         
         idx = int(indexes[2])
         x_start, y_start, z_start = int(indexes[3]), int(indexes[4]), int(indexes[5])
@@ -77,7 +78,11 @@ class PatchHandler3D():
             mask_patch = self.rotate_object(mask_patch, rotation_degree_idx, rotation_plane)
         
         # U-LR, HR, MAG, V-LR, HR, MAG, w-LR, HR, MAG, venc, MASK
-        return u_patch, u_hr_patch, mag_u_patch, v_patch, v_hr_patch, mag_v_patch, w_patch, w_hr_patch, mag_w_patch, venc, mask_patch
+        # Expand dims
+        return u_patch[...,tf.newaxis], v_patch[...,tf.newaxis], w_patch[...,tf.newaxis], \
+                    mag_u_patch[...,tf.newaxis], mag_v_patch[...,tf.newaxis], mag_w_patch[...,tf.newaxis], \
+                    u_hr_patch[...,tf.newaxis], v_hr_patch[...,tf.newaxis], w_hr_patch[...,tf.newaxis], \
+                    venc, mask_patch[...,tf.newaxis]
 
     def rotate_object(self, img, rotation_idx, plane_nr):
         if plane_nr==1:
