@@ -57,18 +57,18 @@ class TrainerSetup:
         self.val_loss = tf.keras.metrics.Mean(name='val_loss')
         self.val_accuracy = tf.keras.metrics.Mean(name='val_accuracy')
 
-        # # Prepare tensorboard summary
-        # TODO:
+        # TODO: Log separate loss just like in TF1.x, we lose this because of the compile loss_function
         # tf.summary.scalar(f'{self.network_name}/Divergence_loss2', mse)
         # tf.summary.scalar(f'{self.network_name}/MSE'             , div_loss)
 
-        # # learning rate and training optimizer
+        # learning rate and training optimizer
         self.learning_rate = initial_learning_rate
         
-        # # Optimizer
+        # Optimizer
         self.optimizer = tf.keras.optimizers.Adam(lr=self.learning_rate)
-        # TODO: test compile
-        # self.model.compile(loss=self.calculate_total_loss, optimizer=self.optimizer)
+        
+        # Compile model so we can save the optimizer weights
+        self.model.compile(loss=self.loss_function, optimizer=self.optimizer)
 
     def adjust_learning_rate(self, epoch):
         if epoch > 0 and epoch % 1 == 0:
@@ -141,62 +141,6 @@ class TrainerSetup:
 
                     shutil.copy2(f"{directory}/{fname}", dest_fpath)
 
-    def _update_summary_logging(self, epoch):
-        """
-            Tf.summary for epoch level loss
-        """
-        # Summary writer
-        with self.train_writer.as_default():
-            # other model code would go here
-            tf.summary.scalar("loss", self.train_loss.result(), step=epoch)
-            tf.summary.scalar("rel_loss", self.train_accuracy.result(), step=epoch)
-            # tf.summary.scalar("learning_rate", self.optimizer.lr, step=epoch)
-        
-        with self.val_writer.as_default():
-            # other model code would go here
-            tf.summary.scalar("loss", self.val_loss.result(), step=epoch)
-            tf.summary.scalar("rel_loss", self.val_accuracy.result(), step=epoch)
-        
-    def quicksave(self, testset, epoch_nr):
-        """
-            Predict a batch of data from the benchmark testset.
-            This is saved under the model directory with the name quicksave_[network_name].h5
-            Quicksave is done everytime the best model is saved.
-        """
-        for i, (data_pairs) in enumerate(testset):
-            u,v,w, u_mag, v_mag, w_mag, u_hr,v_hr, w_hr, venc, mask = data_pairs
-            hires = tf.concat((u_hr, v_hr, w_hr), axis=-1)
-            input_data = [u,v,w, u_mag, v_mag, w_mag]
-
-            preds = self.model.predict(input_data)
-
-            loss_val = self.loss_function(hires, preds)
-            rel_loss = self.accuracy_function(hires, preds, mask)
-            # Do only 1 batch
-            break
-
-        quicksave_filename = f"quicksave_{self.network_name}.h5"
-        h5util.save_predictions(self.model_dir, quicksave_filename, "epoch", np.asarray([epoch_nr]), compression='gzip')
-
-        preds = np.expand_dims(preds, 0) # Expand dim to [epoch_nr, batch, ....]
-        h5util.save_predictions(self.model_dir, quicksave_filename, "u", preds[:, :,:,:,:, 0], compression='gzip')
-        h5util.save_predictions(self.model_dir, quicksave_filename, "v", preds[:, :,:,:,:, 1], compression='gzip')
-        h5util.save_predictions(self.model_dir, quicksave_filename, "w", preds[:, :,:,:,:, 2], compression='gzip')
-
-        if epoch_nr == 1:
-            # Save the actual data only for the first epoch
-            h5util.save_predictions(self.model_dir, quicksave_filename, "lr_u", u, compression='gzip')
-            h5util.save_predictions(self.model_dir, quicksave_filename, "lr_v", v, compression='gzip')
-            h5util.save_predictions(self.model_dir, quicksave_filename, "lr_w", w, compression='gzip')
-
-            h5util.save_predictions(self.model_dir, quicksave_filename, "hr_u", np.squeeze(u_hr, -1), compression='gzip')
-            h5util.save_predictions(self.model_dir, quicksave_filename, "hr_v", np.squeeze(v_hr, -1), compression='gzip')
-            h5util.save_predictions(self.model_dir, quicksave_filename, "hr_w", np.squeeze(w_hr, -1), compression='gzip')
-            
-            h5util.save_predictions(self.model_dir, quicksave_filename, "venc", venc, compression='gzip')
-            h5util.save_predictions(self.model_dir, quicksave_filename, "mask", mask, compression='gzip')
-        
-        return loss_val, rel_loss
       
     @tf.function
     def train_step(self, data_pairs):
@@ -318,3 +262,60 @@ class TrainerSetup:
         message += f"\n==================== END TRAINING ================="
         utility.log_to_file(self.logfile, message)
         print(message)
+
+    def _update_summary_logging(self, epoch):
+        """
+            Tf.summary for epoch level loss
+        """
+        # Summary writer
+        with self.train_writer.as_default():
+            # other model code would go here
+            tf.summary.scalar("loss", self.train_loss.result(), step=epoch)
+            tf.summary.scalar("rel_loss", self.train_accuracy.result(), step=epoch)
+            # tf.summary.scalar("learning_rate", self.optimizer.lr, step=epoch)
+        
+        with self.val_writer.as_default():
+            # other model code would go here
+            tf.summary.scalar("loss", self.val_loss.result(), step=epoch)
+            tf.summary.scalar("rel_loss", self.val_accuracy.result(), step=epoch)
+        
+    def quicksave(self, testset, epoch_nr):
+        """
+            Predict a batch of data from the benchmark testset.
+            This is saved under the model directory with the name quicksave_[network_name].h5
+            Quicksave is done everytime the best model is saved.
+        """
+        for i, (data_pairs) in enumerate(testset):
+            u,v,w, u_mag, v_mag, w_mag, u_hr,v_hr, w_hr, venc, mask = data_pairs
+            hires = tf.concat((u_hr, v_hr, w_hr), axis=-1)
+            input_data = [u,v,w, u_mag, v_mag, w_mag]
+
+            preds = self.model.predict(input_data)
+
+            loss_val = self.loss_function(hires, preds)
+            rel_loss = self.accuracy_function(hires, preds, mask)
+            # Do only 1 batch
+            break
+
+        quicksave_filename = f"quicksave_{self.network_name}.h5"
+        h5util.save_predictions(self.model_dir, quicksave_filename, "epoch", np.asarray([epoch_nr]), compression='gzip')
+
+        preds = np.expand_dims(preds, 0) # Expand dim to [epoch_nr, batch, ....]
+        h5util.save_predictions(self.model_dir, quicksave_filename, "u", preds[:, :,:,:,:, 0], compression='gzip')
+        h5util.save_predictions(self.model_dir, quicksave_filename, "v", preds[:, :,:,:,:, 1], compression='gzip')
+        h5util.save_predictions(self.model_dir, quicksave_filename, "w", preds[:, :,:,:,:, 2], compression='gzip')
+
+        if epoch_nr == 1:
+            # Save the actual data only for the first epoch
+            h5util.save_predictions(self.model_dir, quicksave_filename, "lr_u", u, compression='gzip')
+            h5util.save_predictions(self.model_dir, quicksave_filename, "lr_v", v, compression='gzip')
+            h5util.save_predictions(self.model_dir, quicksave_filename, "lr_w", w, compression='gzip')
+
+            h5util.save_predictions(self.model_dir, quicksave_filename, "hr_u", np.squeeze(u_hr, -1), compression='gzip')
+            h5util.save_predictions(self.model_dir, quicksave_filename, "hr_v", np.squeeze(v_hr, -1), compression='gzip')
+            h5util.save_predictions(self.model_dir, quicksave_filename, "hr_w", np.squeeze(w_hr, -1), compression='gzip')
+            
+            h5util.save_predictions(self.model_dir, quicksave_filename, "venc", venc, compression='gzip')
+            h5util.save_predictions(self.model_dir, quicksave_filename, "mask", mask, compression='gzip')
+        
+        return loss_val, rel_loss
