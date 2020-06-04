@@ -30,15 +30,13 @@ class PatchHandler3D():
             # Set a buffer equal to dataset size to ensure randomness
             ds = ds.shuffle(buffer_size=len(indexes)) 
 
-        # ds = ds.map(self.load_data_using_patch_index, num_parallel_calls=8)
         ds = ds.map(self.load_data_using_patch_index)
         ds = ds.batch(batch_size=self.batch_size)
         
-        # # TODO: set option 
-        # # prefetch, n=number of items, not number of batch
-        # ds = ds.prefetch(self.batch_size)
+        # TODO: set option 
+        # prefetch, n=number of items
+        ds = ds.prefetch(self.batch_size)
         
-
         return ds
     
     def load_data_using_patch_index(self, indexes):

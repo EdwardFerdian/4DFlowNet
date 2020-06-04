@@ -27,8 +27,7 @@ class TrainerSetup:
         
         # Training params
         self.QUICKSAVE_ENABLED = quicksave_enable
-        self.iter_per_epoch = 100
-
+        
         # Network
         self.network_name = network_name
 
@@ -71,9 +70,11 @@ class TrainerSetup:
         self.model.compile(loss=self.loss_function, optimizer=self.optimizer)
 
     def adjust_learning_rate(self, epoch):
-        if epoch > 0 and epoch % 1 == 0:
+        # For 14k rows of data and batch 20, this is ~10k iterations
+        if epoch > 0 and epoch % 14 == 0:
             self.optimizer.lr = self.optimizer.lr / np.sqrt(2)
-            print(f'Learning rate adjusted to {self.optimizer.lr.numpy():.6f}')
+            message = f'Learning rate adjusted to {self.optimizer.lr.numpy():.6f}\n'
+            print(message)
 
     def loss_function(self, y_true, y_pred):
         u,v,w = y_true[:,:,:,:,0],y_true[:,:,:,:,1], y_true[:,:,:,:,2]
@@ -217,7 +218,7 @@ class TrainerSetup:
             start_loop = time.time()
             # --- Training ---
             for i, (data_pairs) in enumerate(trainset):
-                # TODO: psudo-epoch
+                # Train the network
                 self.train_step(data_pairs)
                 message = f"Epoch {epoch+1} Train batch {i+1}/{total_batch_train} | loss: {self.train_loss.result():.5f} ({self.train_accuracy.result():.1f} %) - {time.time()-start_loop:.1f} secs"
                 print(f"\r{message}", end='')
