@@ -1,6 +1,6 @@
+import tensorflow as tf
 import numpy as np
 import h5py
-import tensorflow as tf
 
 class PatchHandler3D():
     # constructor
@@ -33,6 +33,7 @@ class PatchHandler3D():
         # ds = ds.map(self.load_data_using_patch_index, num_parallel_calls=8)
         ds = ds.map(self.load_data_using_patch_index)
         ds = ds.batch(batch_size=self.batch_size)
+        
         # # TODO: set option 
         # # prefetch, n=number of items, not number of batch
         # ds = ds.prefetch(self.batch_size)
@@ -65,10 +66,10 @@ class PatchHandler3D():
         hr_patch_size = self.patch_size * self.res_increase
         
         # ============ get the patch ============ 
-        patch_index  = np.index_exp[x_start:x_start+patch_size, y_start:y_start+patch_size, z_start:z_start+patch_size]
-        hr_patch_index = np.index_exp[x_start*self.res_increase :x_start*self.res_increase +hr_patch_size ,y_start*self.res_increase :y_start*self.res_increase +hr_patch_size , z_start*self.res_increase :z_start*self.res_increase +hr_patch_size ]
-
-        u_patch, u_hr_patch, mag_u_patch, v_patch, v_hr_patch, mag_v_patch, w_patch, w_hr_patch, mag_w_patch, venc, mask_patch = self.load_vectorfield(hd5path, lr_hd5path, idx, patch_index, hr_patch_index)
+        patch_index  = np.index_exp[idx, x_start:x_start+patch_size, y_start:y_start+patch_size, z_start:z_start+patch_size]
+        hr_patch_index = np.index_exp[idx, x_start*self.res_increase :x_start*self.res_increase +hr_patch_size ,y_start*self.res_increase :y_start*self.res_increase +hr_patch_size , z_start*self.res_increase :z_start*self.res_increase +hr_patch_size ]
+        mask_index = np.index_exp[0, x_start*self.res_increase :x_start*self.res_increase +hr_patch_size ,y_start*self.res_increase :y_start*self.res_increase +hr_patch_size , z_start*self.res_increase :z_start*self.res_increase +hr_patch_size ]
+        u_patch, u_hr_patch, mag_u_patch, v_patch, v_hr_patch, mag_v_patch, w_patch, w_hr_patch, mag_w_patch, venc, mask_patch = self.load_vectorfield(hd5path, lr_hd5path, idx, mask_index, patch_index, hr_patch_index)
         
         # ============ apply rotation ============ 
         if is_rotate > 0:
@@ -76,7 +77,7 @@ class PatchHandler3D():
             u_hr_patch, v_hr_patch, w_hr_patch = self.apply_rotation(u_hr_patch, v_hr_patch, w_hr_patch, rotation_degree_idx, rotation_plane, True)
             mag_u_patch, mag_v_patch, mag_w_patch = self.apply_rotation(mag_u_patch, mag_v_patch, mag_w_patch, rotation_degree_idx, rotation_plane, False)
             mask_patch = self.rotate_object(mask_patch, rotation_degree_idx, rotation_plane)
-        
+            
         # Expand dims (for InputLayer)
         return u_patch[...,tf.newaxis], v_patch[...,tf.newaxis], w_patch[...,tf.newaxis], \
                     mag_u_patch[...,tf.newaxis], mag_v_patch[...,tf.newaxis], mag_w_patch[...,tf.newaxis], \
@@ -110,9 +111,10 @@ class PatchHandler3D():
 
         return u, v, w
 
-    def load_vectorfield(self, hd5path, lr_hd5path, idx, patch_index, hr_patch_index):
+    def load_vectorfield(self, hd5path, lr_hd5path, idx, mask_index, patch_index, hr_patch_index):
         '''
-            Override the load u v w data by adding some padding in xy planes
+            Load LowRes velocity and magnitude components, and HiRes velocity components
+            Also returns the global venc and HiRes mask
         '''
         hires_images = []
         lowres_images = []
@@ -124,39 +126,38 @@ class PatchHandler3D():
         with h5py.File(hd5path, 'r') as hl:
             # Open the file once per row, Loop through all the HR column
             for i in range(len(self.hr_colnames)):
-                w_hr = np.asarray(hl.get(self.hr_colnames[i])[idx][hr_patch_index])
+                w_hr = hl.get(self.hr_colnames[i])[hr_patch_index]
                 # add them to the list
                 hires_images.append(w_hr)
 
             # We only have 1 mask for all the objects in 1 file
-            mask = np.asarray(hl.get(self.mask_colname)[0][hr_patch_index]) # Mask value [0 .. 1]
+            mask = hl.get(self.mask_colname)[mask_index] # Mask value [0 .. 1]
             mask = (mask >= self.mask_threshold) * 1.
             
         with h5py.File(lr_hd5path, 'r') as hl:
             for i in range(len(self.lr_colnames)):
-                w = np.asarray(hl.get(self.lr_colnames[i])[idx][patch_index])
-                mag_w = np.asarray(hl.get(self.mag_colnames[i])[idx][patch_index])
-                w_venc = np.asarray(hl.get(self.venc_colnames[i])[idx])
+                w = hl.get(self.lr_colnames[i])[patch_index]
+                mag_w = hl.get(self.mag_colnames[i])[patch_index]
+                w_venc = hl.get(self.venc_colnames[i])[idx]
 
                 # add them to the list
                 lowres_images.append(w)
                 mag_images.append(mag_w)
                 vencs.append(w_venc)
-
+        
         global_venc = np.max(vencs)
 
         # Convert to numpy array
         hires_images = np.asarray(hires_images)
         lowres_images = np.asarray(lowres_images)
         mag_images = np.asarray(mag_images)
-
+        
         # Normalize the values 
         hires_images = self._normalize(hires_images, global_venc) # Velocity normalized to -1 .. 1
         lowres_images = self._normalize(lowres_images, global_venc)
         mag_images = mag_images / 4095. # Magnitude 0 .. 1
 
         # U-LR, HR, MAG, V-LR, HR, MAG, w-LR, HR, MAG, venc, MASK
-        # return lowres_images.astype('float32'), hires_images.astype('float32'), mag_images.astype('float32'), global_venc.astype('float32'), mask.astype('float32')
         return lowres_images[0].astype('float32'), hires_images[0].astype('float32'), mag_images[0].astype('float32'), \
             lowres_images[1].astype('float32'), hires_images[1].astype('float32'), mag_images[1].astype('float32'), \
             lowres_images[2].astype('float32'), hires_images[2].astype('float32'), mag_images[2].astype('float32'),\
