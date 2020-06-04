@@ -77,6 +77,10 @@ class TrainerSetup:
             print(message)
 
     def loss_function(self, y_true, y_pred):
+        """
+            Calculate Total Loss function
+            Loss = MSE + weight * div_loss2
+        """
         u,v,w = y_true[:,:,:,:,0],y_true[:,:,:,:,1], y_true[:,:,:,:,2]
         u_pred,v_pred,w_pred = y_pred[:,:,:,:,0],y_pred[:,:,:,:,1], y_pred[:,:,:,:,2]
 
@@ -86,6 +90,9 @@ class TrainerSetup:
         return  tf.reduce_mean(mse) + self.div_weight * tf.reduce_mean(divergence_loss)
 
     def accuracy_function(self, y_true, y_pred, mask):
+        """
+            Calculate relative speed error
+        """
         u,v,w = y_true[:,:,:,:,0],y_true[:,:,:,:,1], y_true[:,:,:,:,2]
         u_pred,v_pred,w_pred = y_pred[:,:,:,:,0],y_pred[:,:,:,:,1], y_pred[:,:,:,:,2]
 
@@ -127,8 +134,8 @@ class TrainerSetup:
         self.logfile = self.model_dir + '/loss.csv'
 
         utility.log_to_file(self.logfile, f'Network: {self.network_name}\n')
-        utility.log_to_file(self.logfile, f'learning rate: {self.learning_rate}\n')
-        utility.log_to_file(self.logfile, f'epoch, train_err, val_err, train_rel_err, val_rel_err, elapsed (sec), best_model, benchmark_err, benchmark_rel_err\n')
+        utility.log_to_file(self.logfile, f'Initial learning rate: {self.learning_rate}\n')
+        utility.log_to_file(self.logfile, f'epoch, train_err, val_err, train_rel_err, val_rel_err, learning rate, elapsed (sec), best_model, benchmark_err, benchmark_rel_err\n')
 
         print("Copying source code to model directory...")
         # Copy all the source file to the model dir for backup
@@ -170,8 +177,8 @@ class TrainerSetup:
         # tf.print("\nBatch loss check", loss, self.train_loss.result())
         # tf.print("\nBatch acc check", rel_error, self.train_accuracy.result())
         with self.train_writer.as_default():
-            tf.summary.scalar("batch_loss", loss, step=self.optimizer.iterations)
-            tf.summary.scalar("batch_acc" , rel_error, step=self.optimizer.iterations)
+            tf.summary.scalar(f"{self.network_name}/batch_loss", loss, step=self.optimizer.iterations)
+            tf.summary.scalar(f"{self.network_name}/batch_acc" , rel_error, step=self.optimizer.iterations)
 
     @tf.function
     def test_step(self, data_pairs):
@@ -231,7 +238,7 @@ class TrainerSetup:
 
             # --- Epoch logging ---
             message = f'\rEpoch {epoch+1} Train loss: {self.train_loss.result():.5f} ({self.train_accuracy.result():.1f} %), Val loss: {self.val_loss.result():.5f} ({self.val_accuracy.result():.1f} %) - {time.time()-start_loop:.1f} secs'
-            log_line = f'{epoch+1},{self.train_loss.result():.7f},{self.val_loss.result():.7f},{self.train_accuracy.result():.2f}%,{self.val_accuracy.result():.2f}%,{time.time()-start_loop:.1f}'
+            log_line = f'{epoch+1},{self.train_loss.result():.7f},{self.val_loss.result():.7f},{self.train_accuracy.result():.2f}%,{self.val_accuracy.result():.2f}%,{self.optimizer.lr.numpy():.6f},{time.time()-start_loop:.1f}'
             self._update_summary_logging(epoch)
 
             # --- Save criteria ---
@@ -271,14 +278,14 @@ class TrainerSetup:
         # Summary writer
         with self.train_writer.as_default():
             # other model code would go here
-            tf.summary.scalar("loss", self.train_loss.result(), step=epoch)
-            tf.summary.scalar("rel_loss", self.train_accuracy.result(), step=epoch)
-            # tf.summary.scalar("learning_rate", self.optimizer.lr, step=epoch)
+            tf.summary.scalar(f"{self.network_name}/loss", self.train_loss.result(), step=epoch)
+            tf.summary.scalar(f"{self.network_name}/rel_loss", self.train_accuracy.result(), step=epoch)
+            tf.summary.scalar(f"{self.network_name}/learning_rate", self.optimizer.lr, step=epoch)
         
         with self.val_writer.as_default():
             # other model code would go here
-            tf.summary.scalar("loss", self.val_loss.result(), step=epoch)
-            tf.summary.scalar("rel_loss", self.val_accuracy.result(), step=epoch)
+            tf.summary.scalar(f"{self.network_name}/loss", self.val_loss.result(), step=epoch)
+            tf.summary.scalar(f"{self.network_name}/rel_loss", self.val_accuracy.result(), step=epoch)
         
     def quicksave(self, testset, epoch_nr):
         """
