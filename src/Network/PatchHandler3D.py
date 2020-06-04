@@ -77,13 +77,12 @@ class PatchHandler3D():
             mag_u_patch, mag_v_patch, mag_w_patch = self.apply_rotation(mag_u_patch, mag_v_patch, mag_w_patch, rotation_degree_idx, rotation_plane, False)
             mask_patch = self.rotate_object(mask_patch, rotation_degree_idx, rotation_plane)
         
-        # U-LR, HR, MAG, V-LR, HR, MAG, w-LR, HR, MAG, venc, MASK
-        # Expand dims
+        # Expand dims (for InputLayer)
         return u_patch[...,tf.newaxis], v_patch[...,tf.newaxis], w_patch[...,tf.newaxis], \
                     mag_u_patch[...,tf.newaxis], mag_v_patch[...,tf.newaxis], mag_w_patch[...,tf.newaxis], \
                     u_hr_patch[...,tf.newaxis], v_hr_patch[...,tf.newaxis], w_hr_patch[...,tf.newaxis], \
-                    venc, mask_patch[...,tf.newaxis]
-
+                    venc, mask_patch
+                    
     def rotate_object(self, img, rotation_idx, plane_nr):
         if plane_nr==1:
             ax = (0,1)
