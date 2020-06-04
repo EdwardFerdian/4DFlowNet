@@ -127,7 +127,7 @@ class TrainerSetup:
 
         utility.log_to_file(self.logfile, f'Network: {self.network_name}\n')
         utility.log_to_file(self.logfile, f'learning rate: {self.learning_rate}\n')
-        utility.log_to_file(self.logfile, f'epoch, train_err, val_err, train_rel_err, val_rel_err, best_model, benchmark_err, benchmark_rel_err\n')
+        utility.log_to_file(self.logfile, f'epoch, train_err, val_err, train_rel_err, val_rel_err, elapsed (sec), best_model, benchmark_err, benchmark_rel_err\n')
 
         print("Copying source code to model directory...")
         # Copy all the source file to the model dir for backup
@@ -271,14 +271,14 @@ class TrainerSetup:
             self.val_accuracy.reset_states()
 
             start_loop = time.time()
-            
-             # --- Training ---
+            # --- Training ---
             for i, (data_pairs) in enumerate(trainset):
+                # TODO: psudo-epoch
                 self.train_step(data_pairs)
                 message = f"Epoch {epoch+1} Train batch {i+1}/{total_batch_train} | loss: {self.train_loss.result():.5f} ({self.train_accuracy.result():.1f} %) - {time.time()-start_loop:.1f} secs"
                 print(f"\r{message}", end='')
 
-
+            # --- Validation ---
             for i, (data_pairs) in enumerate(valset):
                 self.test_step(data_pairs)
                 message = f"Epoch {epoch+1} Validation batch {i+1}/{total_batch_val} | loss: {self.val_loss.result():.5f} ({self.val_accuracy.result():.1f} %) - {time.time()-start_loop:.1f} secs"
@@ -300,17 +300,21 @@ class TrainerSetup:
                 message  += ' **' # Mark as saved
                 log_line += ',**'
 
+                # Benchmarking
                 if self.QUICKSAVE_ENABLED and testset is not None:
                     quick_loss, quick_accuracy = self.quicksave(testset, epoch+1)
                     message  += f' Benchmark loss: {quick_loss:.5f} ({quick_accuracy:.1f} %)'
                     log_line += f', {quick_loss:.7f}, {quick_accuracy:.2f}%'
-
+            # Logging
             print(message)
             utility.log_to_file(self.logfile, log_line+"\n")
             # /END of epoch loop
 
-        print(f"\nTraining {self.network_name} completed! - name: {self.unique_model_name}")
+        # End
         hrs, mins, secs = utility.calculate_time_elapsed(start_time)
-        print(f"Total training time: {hrs} hrs {mins} mins {secs} secs.")
-        print(f"Finished at {time.ctime()}")
-        print("==================== END TRAINING =================")
+        message =  f"\nTraining {self.network_name} completed! - name: {self.unique_model_name}"
+        message += f"\nTotal training time: {hrs} hrs {mins} mins {secs} secs."
+        message += f"\nFinished at {time.ctime()}"
+        message += f"\n==================== END TRAINING ================="
+        utility.log_to_file(self.logfile, message)
+        print(message)
