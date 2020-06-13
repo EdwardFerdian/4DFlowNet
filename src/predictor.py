@@ -71,7 +71,7 @@ if __name__ == '__main__':
         print(f"\rProcessed {data_size}/{data_size} Elapsed: {time_taken:.2f} secs.")
 
         for i in range (0,3):
-            v = pgen._patchup_with_overlap(results[:,:,:,:,0], pgen.nr_x, pgen.nr_y, pgen.nr_z)
+            v = pgen._patchup_with_overlap(results[:,:,:,:,i], pgen.nr_x, pgen.nr_y, pgen.nr_z)
             
             # Denormalized
             v = v * dataset.venc 
