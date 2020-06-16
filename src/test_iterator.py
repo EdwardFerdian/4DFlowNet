@@ -16,62 +16,32 @@ if __name__ == "__main__":
     
     # ---- Patch index files ----
     training_file = '{}/train.csv'.format(data_dir)
-    validate_file = '{}/validate.csv'.format(data_dir)
-
-    QUICKSAVE = True
-    benchmark_file = '{}/benchmark.csv'.format(data_dir)
-
-    # data_dir = r'D:\Dataset\pressure_data\fsaa'
-    
-    # # ---- Patch index files ----
-    # training_file = '{}/train12.csv'.format(data_dir)
-    # validate_file = '{}/val12.csv'.format(data_dir)
-
-    # QUICKSAVE = True
-    # benchmark_file = '{}/benchmark12.csv'.format(data_dir)
-    
+   
     # Hyperparameters optimisation variables
     epochs =  3
     batch_size = 4
 
-    # Network setting
-    network_name = 'testNet'
     patch_size = 12
     res_increase = 2
     
 
     # Load data file and indexes
     trainset = load_indexes(training_file)
-    valset = load_indexes(validate_file)
     
     # ----------------- TensorFlow stuff -------------------
     # TRAIN dataset iterator
     z = PatchHandler3D(data_dir, patch_size, res_increase, batch_size)
-    trainset = z.initialize_dataset(trainset, training=True)
-
-    # VALIDATION iterator
-    valdh = PatchHandler3D(data_dir, patch_size, res_increase, batch_size)
-    valset = valdh.initialize_dataset(valset, training=False)
-
-    iter_per_epoch = 2
+    trainset = z.initialize_dataset(trainset, shuffle=True, n_parallel=2)
 
     for epoch in range(epochs):
         print(f"\nEpoch {epoch+1}")
         start_time = time.time()
         for i, data_pairs in enumerate(trainset):
             start_loop = time.time()
-            # print ("train iteration", i)
+            
             a = data_pairs
             message = f"Iteration {i+1}   - batc {time.time()-start_loop:.4f} sec {time.time()-start_time:.1f} secs"
             print(f"\r{message}", end='')
-            # print(a[0].shape)
             
-
-    # for i, data_pairs in enumerate(valset):
-    #     if i == iter_per_epoch:
-    #         break
-    #     print ("val iteration", i)
-    #     a = data_pairs
-        
     print("\nDone")
-    # print('\nElapsed', time.time()-start_time, 'secs.')
+    

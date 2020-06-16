@@ -24,7 +24,7 @@ if __name__ == "__main__":
     
     # Hyperparameters optimisation variables
     initial_learning_rate = 1e-4
-    epochs =  1000
+    epochs =  150
     batch_size = 20
     mask_threshold = 0.6
 
@@ -43,18 +43,20 @@ if __name__ == "__main__":
     # ----------------- TensorFlow stuff -------------------
     # TRAIN dataset iterator
     z = PatchHandler3D(data_dir, patch_size, res_increase, batch_size, mask_threshold)
-    trainset = z.initialize_dataset(trainset, training=True)
+    trainset = z.initialize_dataset(trainset, shuffle=True, n_parallel=None)
 
     # VALIDATION iterator
     valdh = PatchHandler3D(data_dir, patch_size, res_increase, batch_size, mask_threshold)
-    valset = valdh.initialize_dataset(valset, training=False)
+    valset = valdh.initialize_dataset(valset, shuffle=True, n_parallel=None)
 
     # # Bechmarking dataset, use to keep track of prediction progress per best model
     testset = None
     if QUICKSAVE and benchmark_file is not None:
+        # WE use this bechmarking set so we can see the prediction progressing over time
         benchmark_set = load_indexes(benchmark_file)
         ph = PatchHandler3D(data_dir, patch_size, res_increase, batch_size, mask_threshold)
-        testset = ph.initialize_dataset(benchmark_set, training=False)
+        # No shuffling, so we can save the first batch consistently
+        testset = ph.initialize_dataset(benchmark_set, shuffle=False) 
 
     # ------- Main Network ------
     print(f"4DFlowNet Patch {patch_size}, lr {initial_learning_rate}, batch {batch_size}")

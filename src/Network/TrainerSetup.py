@@ -56,7 +56,7 @@ class TrainerSetup:
         self.val_loss = tf.keras.metrics.Mean(name='val_loss')
         self.val_accuracy = tf.keras.metrics.Mean(name='val_accuracy')
 
-        # TODO: Log separate loss just like in TF1.x, we lose this because of the compile loss_function
+        # TODO: Log separate loss just like in TF1.x
         # tf.summary.scalar(f'{self.network_name}/Divergence_loss2', mse)
         # tf.summary.scalar(f'{self.network_name}/MSE'             , div_loss)
 
@@ -73,7 +73,7 @@ class TrainerSetup:
         # For 14k rows of data and batch 20, this is ~10k iterations
         if epoch > 0 and epoch % 14 == 0:
             self.optimizer.lr = self.optimizer.lr / np.sqrt(2)
-            message = f'Learning rate adjusted to {self.optimizer.lr.numpy():.6f}\n'
+            message = f'Learning rate adjusted to {self.optimizer.lr.numpy():.6f} - {time.ctime()}\n'
             print(message)
 
     def loss_function(self, y_true, y_pred):
