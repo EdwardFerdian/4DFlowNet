@@ -166,7 +166,7 @@ class TrainerSetup:
         self.logfile = self.model_dir + '/loss.csv'
 
         utility.log_to_file(self.logfile, f'Network: {self.network_name}\n')
-        utility.log_to_file(self.logfile, f'epoch, train_err, val_err, train_rel_err, val_rel_err, best_model, benchmark_err, benchmark_rel_err\n')
+        utility.log_to_file(self.logfile, f'epoch, train_err, val_err, train_rel_err, val_rel_err, learning rate, elapsed (sec), best_model, benchmark_err, benchmark_rel_err\n')
 
     def _update_summary_logging(self, epoch, epoch_loss, epoch_relloss, is_training):
         """
@@ -321,7 +321,8 @@ class TrainerSetup:
                 val_relloss = 0
 
             message = f'\rEpoch {epoch+1} Train loss: {train_loss:.5f} ({train_relloss:.1f} %), Val loss: {val_loss:.5f} ({val_relloss:.1f} %) - {time.time()-start_loop:.1f} secs'
-            log_line = f'{epoch+1},{train_loss:.7f},{val_loss:.7f},{train_relloss:.2f}%,{val_relloss:.2f}%'
+            log_line = f'{epoch+1},{train_loss:.7f},{val_loss:.7f},{train_relloss:.2f}%,{val_relloss:.2f}%,{lr:.6f},{time.time()-start_loop:.1f}'
+
             # Save criteria 
             if avg_relloss < previous_loss:
                 self.saver.save(self.sess, self.model_path)
