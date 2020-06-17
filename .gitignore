@@ -5,3 +5,4 @@ __pycache__/
 *.log
 models/
 .vscode/
+result/

@@ -28,6 +28,15 @@ class PatchGenerator():
         self.nr_y = j
         self.nr_z = k
 
+        # Expand dims for tf.keras input shape
+        u_stacks = np.expand_dims(u_stacks, -1)
+        v_stacks = np.expand_dims(v_stacks, -1)
+        w_stacks = np.expand_dims(w_stacks, -1)
+
+        umag_stacks = np.expand_dims(umag_stacks, -1)
+        vmag_stacks = np.expand_dims(vmag_stacks, -1)
+        wmag_stacks = np.expand_dims(wmag_stacks, -1)
+
         return (u_stacks, v_stacks, w_stacks), (umag_stacks, vmag_stacks, wmag_stacks)
     
     def unpatchify(self, results):

@@ -44,11 +44,10 @@ def calculate_gradient(image, kernel):
     conv = tf.squeeze(conv, 4)
     return conv
 
-def calculate_divergence(u, v, w):
+def calculate_divergence(u, v, w, kernels):
     """
         Calculate divergence for the corresponding velocity component
     """
-    kernels = create_divergence_kernels()
     dudx = calculate_gradient(u, kernels[0])
     dvdy = calculate_gradient(v, kernels[1])
     dwdz = calculate_gradient(w, kernels[2])
@@ -56,8 +55,9 @@ def calculate_divergence(u, v, w):
     return (dudx, dvdy, dwdz)
 
 def calculate_divergence_loss2(u, v, w, u_pred, v_pred, w_pred):
-    (divpx, divpy, divpz) = calculate_divergence(u_pred, v_pred, w_pred)
-    (divx, divy, divz) = calculate_divergence(u, v, w)
+    div_kernels = create_divergence_kernels()
+    (divpx, divpy, divpz) = calculate_divergence(u_pred, v_pred, w_pred, div_kernels)
+    (divx, divy, divz) = calculate_divergence(u, v, w, div_kernels)
     
     return (divpx - divx) ** 2 + (divpy - divy) ** 2 + (divpz - divz) ** 2
 
