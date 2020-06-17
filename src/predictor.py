@@ -1,6 +1,7 @@
 import tensorflow as tf
 import numpy as np
 import time
+import os
 from Network.SRLoader import SRLoader
 from Network.PatchGenerator import PatchGenerator
 from utils import prediction_utils
@@ -36,6 +37,9 @@ if __name__ == '__main__':
     print(f"Loading 4DFlowNet: {res_increase}x upsample")
     # Load the network
     network = SRLoader(model_dir, patch_size, res_increase, low_resblock, hi_resblock)
+
+    if not os.path.isdir(output_dir):
+        os.makedirs(output_dir)
 
     # loop through all the rows in the input file
     for nrow in range(0, nr_rows):
