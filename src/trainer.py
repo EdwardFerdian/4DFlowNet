@@ -46,18 +46,18 @@ if __name__ == "__main__":
 
     # TRAIN dataset iterator
     z = PatchHandler3D(data_dir, patch_size, res_increase, batch_size, mask_threshold)
-    iterator = z.initialize_dataset(trainset, training=True)
+    iterator = z.initialize_dataset(trainset, shuffle=True)
 
     # VALIDATION iterator
     valdh = PatchHandler3D(data_dir, patch_size, res_increase, batch_size, mask_threshold)
-    val_iterator = valdh.initialize_dataset(valset, training=False)
+    val_iterator = valdh.initialize_dataset(valset, shuffle=False)
 
     # Bechmarking iterator, use to keep track of prediction progress per best model
     benchmark_iterator = None
     if QUICKSAVE and benchmark_file is not None:
         benchmark_set = load_indexes(benchmark_file)
         ph = PatchHandler3D(data_dir, patch_size, res_increase, batch_size, mask_threshold)
-        benchmark_iterator = ph.initialize_dataset(benchmark_set, training=False)
+        benchmark_iterator = ph.initialize_dataset(benchmark_set, shuffle=False)
 
     # ------- Main Network ------
     print(f"4DFlowNet Patch {patch_size}, lr {initial_learning_rate}, batch {batch_size}")

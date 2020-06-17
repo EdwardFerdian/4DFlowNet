@@ -36,7 +36,7 @@ if __name__ == "__main__":
 
     # TRAIN dataset iterator
     z = PatchHandler3D(data_dir, patch_size, res_increase, batch_size, mask_threshold)
-    iterator = z.initialize_dataset(trainset, training=True)
+    iterator = z.initialize_dataset(trainset, shuffle=True)
 
     # Loop the iterator
     next_element = iterator.get_next()
