@@ -1,6 +1,7 @@
 import tensorflow as tf
 import numpy as np
 import time
+import os
 from Network.SR4DFlowNet import SR4DFlowNet
 from Network.PatchGenerator import PatchGenerator
 from utils import prediction_utils
@@ -34,7 +35,7 @@ if __name__ == '__main__':
     output_dir = "../result"
     output_filename = 'example_result.h5'
     
-    model_path = "../models/4DFlowNet/4DFlowNet_weights.h5"
+    model_path = "../models/4DFlowNet/4DFlowNet.h5"
     # Params
     patch_size = 24
     res_increase = 2
@@ -58,6 +59,9 @@ if __name__ == '__main__':
     # Load the network
     network = prepare_network(patch_size, res_increase, low_resblock, hi_resblock)
     network.load_weights(model_path)
+
+    if not os.path.isdir(output_dir):
+        os.makedirs(output_dir)
 
     # loop through all the rows in the input file
     for nrow in range(0, nr_rows):
