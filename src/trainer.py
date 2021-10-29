@@ -1,9 +1,6 @@
 import numpy as np
-import tensorflow as tf
-import time
-import h5py
 from Network.PatchHandler3D import PatchHandler3D
-from Network.TrainerSetup import TrainerSetup
+from Network.TrainerController import TrainerController
 
 def load_indexes(index_file):
     """
@@ -22,9 +19,14 @@ if __name__ == "__main__":
     QUICKSAVE = True
     benchmark_file = '{}/benchmark.csv'.format(data_dir)
     
+    restore = False
+    if restore:
+        model_dir = "../models/4DFlowNet"
+        model_file = "4DFlowNet-best.h5"
+
     # Hyperparameters optimisation variables
-    initial_learning_rate = 1e-4
-    epochs =  150
+    initial_learning_rate = 2e-4
+    epochs =  60
     batch_size = 20
     mask_threshold = 0.6
 
@@ -60,6 +62,12 @@ if __name__ == "__main__":
 
     # ------- Main Network ------
     print(f"4DFlowNet Patch {patch_size}, lr {initial_learning_rate}, batch {batch_size}")
-    network = TrainerSetup(patch_size, res_increase, initial_learning_rate, QUICKSAVE, network_name, low_resblock, hi_resblock)
+    network = TrainerController(patch_size, res_increase, initial_learning_rate, QUICKSAVE, network_name, low_resblock, hi_resblock)
     network.init_model_dir()
+
+    if restore:
+        print(f"Restoring model {model_file}...")
+        network.restore_model(model_dir, model_file)
+        print("Learning rate", network.optimizer.lr.numpy())
+
     network.train_network(trainset, valset, n_epoch=epochs, testset=testset)

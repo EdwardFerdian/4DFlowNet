@@ -27,7 +27,7 @@ class PatchGenerator():
         self.nr_x = i
         self.nr_y = j
         self.nr_z = k
-
+        
         # Expand dims for tf.keras input shape
         u_stacks = np.expand_dims(u_stacks, -1)
         v_stacks = np.expand_dims(v_stacks, -1)

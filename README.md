@@ -1,15 +1,24 @@
 # 4DFlowNet
 Super Resolution 4D Flow MRI using Residual Neural Network
 
-This is an implementation of the paper [4DFlowNet: Super-Resolution 4D Flow MRI Using Deep Learning and Computational Fluid Dynamics](https://www.frontiersin.org/articles/10.3389/fphy.2020.00138/full) using Tensorflow 2.0 with Keras. 
-Previous implementation on Tensorflow 1.8 can be found in the tf1.8 branch.
+This is an implementation of the paper [4DFlowNet: Super-Resolution 4D Flow MRI Using Deep Learning and Computational Fluid Dynamics](https://www.frontiersin.org/articles/10.3389/fphy.2020.00138/full) using Tensorflow 2.2.0 with Keras.
 
-Please find the pre-trained networks weights (for both Tensorflow versions) here:
+## Updates 4DFlowNet v2.0
+- Loss function has been updated (MSE fluid + MSE non fluid)
+- L2 regularization added
+- Divergence loss turned off
+- Evaluation metrics updated
+- Final activation layer switch to linear to allow phase aliasing
+
+## Manuscript version
+
+Original network implementation from the manuscript can be found under the following branches:
+- release/manuscript_version (for TF2.0)
+- tf1.8 (for Tensorflow 1.8.0)
+
+The pre-trained networks weights (for both Tensorflow versions) here:
 
 [4DFlowNet pre-trained weights](https://auckland.figshare.com/articles/Super_Resolution_4DFlow_MRI/12253424)
-
-
-If you are using later Tensorflow 1.x version that is not compatible with this 1.8 version, please refer to Tensorflow backwards compatibility (tf.compat module). 
 
 
 # Example results

@@ -37,13 +37,14 @@ class SR4DFlowNet():
 
         # 3 separate path version
         u_path = conv3d(rb, 3, channel_nr, 'SYMMETRIC', 'relu')
-        u_path = conv3d(u_path, 3, 1, 'SYMMETRIC', 'tanh')
+        u_path = conv3d(u_path, 3, 1, 'SYMMETRIC', None)
 
         v_path = conv3d(rb, 3, channel_nr, 'SYMMETRIC', 'relu')
-        v_path = conv3d(v_path, 3, 1, 'SYMMETRIC', 'tanh')
+        v_path = conv3d(v_path, 3, 1, 'SYMMETRIC', None)
 
         w_path = conv3d(rb, 3, channel_nr, 'SYMMETRIC', 'relu')
-        w_path = conv3d(w_path, 3, 1, 'SYMMETRIC', 'tanh')
+        w_path = conv3d(w_path, 3, 1, 'SYMMETRIC', None)
+        
 
         b_out = tf.keras.layers.concatenate([u_path, v_path, w_path])
 
@@ -95,13 +96,15 @@ def conv3d(x, kernel_size, filters, padding='SYMMETRIC', activation=None, initia
         For tf padding, refer to: https://www.tensorflow.org/api_docs/python/tf/pad
 
     """
+    reg_l2 = tf.keras.regularizers.l2(5e-7)
+
     if padding == 'SYMMETRIC' or padding == 'REFLECT':
         p = (kernel_size - 1) // 2
         x = tf.pad(x, [[0,0],[p,p],[p,p], [p,p],[0,0]], padding)
-        x = tf.keras.layers.Conv3D(filters, kernel_size, activation=activation, kernel_initializer=initialization, use_bias=use_bias)(x)
+        x = tf.keras.layers.Conv3D(filters, kernel_size, activation=activation, kernel_initializer=initialization, use_bias=use_bias, kernel_regularizer=reg_l2)(x)
     else:
         assert padding in ['SAME', 'VALID']
-        x = tf.keras.layers.Conv3D(filters, kernel_size, activation=activation, kernel_initializer=initialization, use_bias=use_bias)(x)
+        x = tf.keras.layers.Conv3D(filters, kernel_size, activation=activation, kernel_initializer=initialization, use_bias=use_bias, kernel_regularizer=reg_l2)(x)
     return x
     
 
