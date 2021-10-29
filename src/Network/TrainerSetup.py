@@ -50,15 +50,19 @@ class TrainerSetup:
         # ===== Loss function =====
         print(f"Divergence loss2 * {self.div_weight}")
 
-        self.train_loss = tf.keras.metrics.Mean(name='train_loss')
-        self.train_accuracy = tf.keras.metrics.Mean(name='train_accuracy')
+        self.loss_metrics = dict([
+            ('train_loss', tf.keras.metrics.Mean(name='train_loss')),
+            ('val_loss', tf.keras.metrics.Mean(name='val_loss')),
+            ('train_accuracy', tf.keras.metrics.Mean(name='train_accuracy')),
+            ('val_accuracy', tf.keras.metrics.Mean(name='val_accuracy')),
+            ('train_mse', tf.keras.metrics.Mean(name='train_mse')),
+            ('val_mse', tf.keras.metrics.Mean(name='val_mse')),
+            ('train_div', tf.keras.metrics.Mean(name='train_div')),
+            ('val_div', tf.keras.metrics.Mean(name='val_div')),
 
-        self.val_loss = tf.keras.metrics.Mean(name='val_loss')
-        self.val_accuracy = tf.keras.metrics.Mean(name='val_accuracy')
-
-        # TODO: Log separate loss just like in TF1.x
-        # tf.summary.scalar(f'{self.network_name}/Divergence_loss2', mse)
-        # tf.summary.scalar(f'{self.network_name}/MSE'             , div_loss)
+            ('l2_reg_loss', tf.keras.metrics.Mean(name='l2_reg_loss')),
+        ])
+        self.accuracy_metric = 'val_loss'
 
         # learning rate and training optimizer
         self.learning_rate = initial_learning_rate
@@ -135,7 +139,12 @@ class TrainerSetup:
 
         utility.log_to_file(self.logfile, f'Network: {self.network_name}\n')
         utility.log_to_file(self.logfile, f'Initial learning rate: {self.learning_rate}\n')
-        utility.log_to_file(self.logfile, f'epoch, train_err, val_err, train_rel_err, val_rel_err, learning rate, elapsed (sec), best_model, benchmark_err, benchmark_rel_err\n')
+        utility.log_to_file(self.logfile, f'Accuracy metric: {self.accuracy_metric}\n')
+        utility.log_to_file(self.logfile, f'Divergence weight: {self.div_weight}\n')
+
+        # Header
+        stat_names = ','.join(self.loss_metrics.keys()) # train and val stat names
+        utility.log_to_file(self.logfile, f'epoch, {stat_names}, learning rate, elapsed (sec), best_model, benchmark_err, benchmark_rel_err, benchmark_mse, benchmark_divloss\n')
 
         print("Copying source code to model directory...")
         # Copy all the source file to the model dir for backup
@@ -188,14 +197,38 @@ class TrainerSetup:
         # behavior during training versus inference (e.g. Dropout).
         input_data = [u,v,w, u_mag, v_mag, w_mag]
         predictions = self.model(input_data, training=False)
-        t_loss = self.loss_function(hires, predictions)
         
+        self.calculate_and_update_metrics(hires, predictions, mask, 'val')
+       
 
-        self.val_loss(t_loss)
-        rel_error = self.accuracy_function(hires, predictions, mask)
-        self.val_accuracy(rel_error)
-        # self.val_accuracy(hires, predictions)
         return predictions
+
+    def calculate_and_update_metrics(self, hires, predictions, mask, metric_set):
+        loss, mse, divloss = self.loss_function(hires, predictions, mask)
+        rel_error = self.accuracy_function(hires, predictions, mask)
+        
+        if metric_set == 'train':
+            l2_reg_loss = self.calculate_regularizer_loss()
+            self.loss_metrics[f'l2_reg_loss'].update_state(l2_reg_loss)
+
+            loss += l2_reg_loss
+
+        # Update the loss and accuracy
+        self.loss_metrics[f'{metric_set}_loss'].update_state(loss)
+
+        self.loss_metrics[f'{metric_set}_mse'].update_state(mse)
+        self.loss_metrics[f'{metric_set}_div'].update_state(divloss)
+        self.loss_metrics[f'{metric_set}_accuracy'].update_state(rel_error)
+
+        # self.loss_metrics[f'{metric_set}_wall_loss'].update_state(wall_loss)
+        # self.loss_metrics[f'{metric_set}_nonwall_loss'].update_state(nonwall_loss)
+
+        return loss
+
+    def reset_metrics(self):
+        for key in self.loss_metrics.keys():
+            self.loss_metrics[key].reset_states()
+
 
     def train_network(self, trainset, valset, n_epoch, testset=None):
         """
@@ -275,17 +308,20 @@ class TrainerSetup:
         """
             Tf.summary for epoch level loss
         """
+        # Filter out the train and val metrics
+        train_metrics = {k.replace('train_',''): v for k, v in self.loss_metrics.items() if k.startswith('train_')}
+        val_metrics = {k.replace('val_',''): v for k, v in self.loss_metrics.items() if k.startswith('val_')}
+        
         # Summary writer
         with self.train_writer.as_default():
-            # other model code would go here
-            tf.summary.scalar(f"{self.network_name}/loss", self.train_loss.result(), step=epoch)
-            tf.summary.scalar(f"{self.network_name}/rel_loss", self.train_accuracy.result(), step=epoch)
             tf.summary.scalar(f"{self.network_name}/learning_rate", self.optimizer.lr, step=epoch)
+            for key in train_metrics.keys():
+                tf.summary.scalar(f"{self.network_name}/{key}",  train_metrics[key].result(), step=epoch)         
         
         with self.val_writer.as_default():
-            # other model code would go here
-            tf.summary.scalar(f"{self.network_name}/loss", self.val_loss.result(), step=epoch)
-            tf.summary.scalar(f"{self.network_name}/rel_loss", self.val_accuracy.result(), step=epoch)
+            for key in val_metrics.keys():
+                tf.summary.scalar(f"{self.network_name}/{key}",  val_metrics[key].result(), step=epoch)
+   
         
     def quicksave(self, testset, epoch_nr):
         """
