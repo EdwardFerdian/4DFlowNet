@@ -20,7 +20,8 @@ class TrainerSetup:
             TrainerSetup constructor
             Setup all the placeholders, network graph, loss functions and optimizer here.
         """
-        self.div_weight = 1e-2 # Weighting for divergence loss
+        self.div_weight = 0 # Weighting for divergence loss
+        self.non_fluid_weight = 1 # Weigthing for non fluid region
 
         # General param
         self.res_increase = res_increase
@@ -71,16 +72,15 @@ class TrainerSetup:
         self.optimizer = tf.keras.optimizers.Adam(lr=self.learning_rate)
         
         # Compile model so we can save the optimizer weights
-        self.model.compile(loss=self.loss_function, optimizer=self.optimizer)
+        # self.model.compile(loss=self.loss_function, optimizer=self.optimizer)
 
-    def adjust_learning_rate(self, epoch):
-        # For 14k rows of data and batch 20, this is ~10k iterations
-        if epoch > 0 and epoch % 14 == 0:
-            self.optimizer.lr = self.optimizer.lr / np.sqrt(2)
-            message = f'Learning rate adjusted to {self.optimizer.lr.numpy():.6f} - {time.ctime()}\n'
+    def save_latest_model(self, epoch):
+        if epoch > 0 and epoch % 10 == 0:
+            self.model.save(f'{self.model_path}-latest.h5')
+            message = f'Saving current model - {time.ctime()}\n'
             print(message)
 
-    def loss_function(self, y_true, y_pred):
+    def loss_function(self, y_true, y_pred, mask):
         """
             Calculate Total Loss function
             Loss = MSE + weight * div_loss2
@@ -89,9 +89,62 @@ class TrainerSetup:
         u_pred,v_pred,w_pred = y_pred[:,:,:,:,0],y_pred[:,:,:,:,1], y_pred[:,:,:,:,2]
 
         mse = self.calculate_mse(u,v,w, u_pred,v_pred,w_pred)
-        divergence_loss = loss_utils.calculate_divergence_loss2(u,v,w, u_pred,v_pred,w_pred)
+
         
-        return  tf.reduce_mean(mse) + self.div_weight * tf.reduce_mean(divergence_loss)
+        
+        # if mask is not None:
+        # === Separate mse ===
+        non_fluid_mask = tf.less(mask, tf.constant(0.5))
+        non_fluid_mask = tf.cast(non_fluid_mask, dtype=tf.float32)
+
+        epsilon = 1 # minimum 1 pixel
+
+        fluid_mse = mse * mask
+        fluid_mse = tf.reduce_sum(fluid_mse, axis=[1,2,3]) / (tf.reduce_sum(mask, axis=[1,2,3]) + epsilon)
+
+        non_fluid_mse = mse * non_fluid_mask
+        non_fluid_mse = tf.reduce_sum(non_fluid_mse, axis=[1,2,3]) / (tf.reduce_sum(non_fluid_mask, axis=[1,2,3]) + epsilon)
+
+        mse = fluid_mse + non_fluid_mse
+
+        # divergence
+        
+        # divergence_loss = loss_utils.calculate_divergence_loss2(u,v,w, u_pred,v_pred,w_pred)
+        # divergence_loss = self.div_weight * divergence_loss
+
+
+        # fluid_divloss = divergence_loss * mask
+        # fluid_divloss = tf.reduce_sum(fluid_divloss, axis=[1,2,3]) / (tf.reduce_sum(mask, axis=[1,2,3]) + epsilon)
+
+        # non_fluid_divloss = divergence_loss * non_fluid_mask
+        # non_fluid_divloss = tf.reduce_sum(non_fluid_divloss, axis=[1,2,3]) / (tf.reduce_sum(non_fluid_mask, axis=[1,2,3]) + epsilon)
+
+        # divergence_loss = fluid_divloss + non_fluid_divloss
+        divergence_loss = 0
+
+
+        # Custom loss
+        # total_loss = mse + tf.reduce_mean(divergence_loss)
+
+        # standard without masking
+        total_loss = mse + divergence_loss
+
+        # return all losses for logging
+        return  total_loss, mse, divergence_loss
+
+    def calculate_regularizer_loss(self):
+        """
+            https://stackoverflow.com/questions/62440162/how-do-i-take-l1-and-l2-regularizers-into-account-in-tensorflow-custom-training
+        """
+        loss = 0
+        for l in self.model.layers:
+            # if hasattr(l,'layers') and l.layers: # the layer itself is a model
+            #     loss+=add_model_loss(l)
+            if hasattr(l,'kernel_regularizer') and l.kernel_regularizer:
+                loss+=l.kernel_regularizer(l.kernel)
+            if hasattr(l,'bias_regularizer') and l.bias_regularizer:
+                loss+=l.bias_regularizer(l.bias)
+        return loss
 
     def accuracy_function(self, y_true, y_pred, mask):
         """
@@ -153,7 +206,7 @@ class TrainerSetup:
             files = os.listdir(directory)
             for fname in files:
                 if fname.endswith(".py") or fname.endswith(".ipynb"):
-                    dest_fpath = os.path.join(self.model_dir,"source",directory, fname)
+                    dest_fpath = os.path.join(self.model_dir,"backup_source",directory, fname)
                     os.makedirs(os.path.dirname(dest_fpath), exist_ok=True)
 
                     shutil.copy2(f"{directory}/{fname}", dest_fpath)
@@ -168,26 +221,14 @@ class TrainerSetup:
             # behavior during training versus inference (e.g. Dropout).
             input_data = [u,v,w, u_mag, v_mag, w_mag]
             predictions = self.model(input_data, training=True)
-            loss = self.loss_function(hires, predictions)
+
+            loss = self.calculate_and_update_metrics(hires, predictions, mask, 'train')
+            
 
         # Get the gradients
         gradients = tape.gradient(loss, self.model.trainable_variables)
         # Update the weights
         self.optimizer.apply_gradients(zip(gradients, self.model.trainable_variables))
-
-        # Update the loss and accuracy
-        self.train_loss(loss)
-
-        rel_error = self.accuracy_function(hires, predictions, mask)
-        self.train_accuracy(rel_error)
-        # self.train_accuracy(hires, predictions)
-
-        # logging batch loss
-        # tf.print("\nBatch loss check", loss, self.train_loss.result())
-        # tf.print("\nBatch acc check", rel_error, self.train_accuracy.result())
-        with self.train_writer.as_default():
-            tf.summary.scalar(f"{self.network_name}/batch_loss", loss, step=self.optimizer.iterations)
-            tf.summary.scalar(f"{self.network_name}/batch_acc" , rel_error, step=self.optimizer.iterations)
 
     @tf.function
     def test_step(self, data_pairs):
@@ -247,39 +288,45 @@ class TrainerSetup:
 
         for epoch in range(n_epoch):
             # ------------------------------- Training -------------------------------
-            self.adjust_learning_rate(epoch)
+            # self.adjust_learning_rate(epoch)
 
             # Reset the metrics at the start of the next epoch
-            self.train_loss.reset_states()
-            self.train_accuracy.reset_states()
-            self.val_loss.reset_states()
-            self.val_accuracy.reset_states()
+            self.reset_metrics()
 
             start_loop = time.time()
             # --- Training ---
             for i, (data_pairs) in enumerate(trainset):
                 # Train the network
                 self.train_step(data_pairs)
-                message = f"Epoch {epoch+1} Train batch {i+1}/{total_batch_train} | loss: {self.train_loss.result():.5f} ({self.train_accuracy.result():.1f} %) - {time.time()-start_loop:.1f} secs"
+                message = f"Epoch {epoch+1} Train batch {i+1}/{total_batch_train} | loss: {self.loss_metrics['train_loss'].result():.5f} ({self.loss_metrics['train_accuracy'].result():.1f} %) - {time.time()-start_loop:.1f} secs"
                 print(f"\r{message}", end='')
 
             # --- Validation ---
             for i, (data_pairs) in enumerate(valset):
                 self.test_step(data_pairs)
-                message = f"Epoch {epoch+1} Validation batch {i+1}/{total_batch_val} | loss: {self.val_loss.result():.5f} ({self.val_accuracy.result():.1f} %) - {time.time()-start_loop:.1f} secs"
+                message = f"Epoch {epoch+1} Validation batch {i+1}/{total_batch_val} | loss: {self.loss_metrics['val_loss'].result():.5f} ({self.loss_metrics['val_accuracy'].result():.1f} %) - {time.time()-start_loop:.1f} secs"
                 print(f"\r{message}", end='')
 
             # --- Epoch logging ---
-            message = f'\rEpoch {epoch+1} Train loss: {self.train_loss.result():.5f} ({self.train_accuracy.result():.1f} %), Val loss: {self.val_loss.result():.5f} ({self.val_accuracy.result():.1f} %) - {time.time()-start_loop:.1f} secs'
-            log_line = f'{epoch+1},{self.train_loss.result():.7f},{self.val_loss.result():.7f},{self.train_accuracy.result():.2f}%,{self.val_accuracy.result():.2f}%,{self.optimizer.lr.numpy():.6f},{time.time()-start_loop:.1f}'
+            message = f"\rEpoch {epoch+1} Train loss: {self.loss_metrics['train_loss'].result():.5f} ({self.loss_metrics['train_accuracy'].result():.1f} %), Val loss: {self.loss_metrics['val_loss'].result():.5f} ({self.loss_metrics['val_accuracy'].result():.1f} %) - {time.time()-start_loop:.1f} secs"
+            
+            loss_values = []
+            # Get the loss values from the loss_metrics dict
+            for key, value in self.loss_metrics.items():
+                # TODO: handle formatting here
+                loss_values.append(f'{value.result():.7f}')
+            loss_str = ','.join(loss_values)
+            log_line = f"{epoch+1},{loss_str},{self.optimizer.lr.numpy():.6f},{time.time()-start_loop:.1f}"
+            
+
             self._update_summary_logging(epoch)
 
             # --- Save criteria ---
-            if self.val_accuracy.result() < previous_loss:
-                self.model.save(f'{self.model_path}_weights.h5')
+            if self.loss_metrics[self.accuracy_metric].result() < previous_loss:
+                self.save_best_model()
                 
                 # Update best acc
-                previous_loss = self.val_accuracy.result()
+                previous_loss = self.loss_metrics[self.accuracy_metric].result()
                 
                 # logging
                 message  += ' **' # Mark as saved
@@ -287,12 +334,16 @@ class TrainerSetup:
 
                 # Benchmarking
                 if self.QUICKSAVE_ENABLED and testset is not None:
-                    quick_loss, quick_accuracy = self.quicksave(testset, epoch+1)
+                    quick_loss, quick_accuracy, quick_mse, quick_div = self.quicksave(testset, epoch+1)
+                    quick_loss, quick_accuracy, quick_mse, quick_div = np.mean(quick_loss), np.mean(quick_accuracy), np.mean(quick_mse), np.mean(quick_div)
+
                     message  += f' Benchmark loss: {quick_loss:.5f} ({quick_accuracy:.1f} %)'
-                    log_line += f', {quick_loss:.7f}, {quick_accuracy:.2f}%'
+                    log_line += f', {quick_loss:.7f}, {quick_accuracy:.2f}%, {quick_mse:.7f}, {quick_div:.7f}'
             # Logging
             print(message)
             utility.log_to_file(self.logfile, log_line+"\n")
+
+            
             # /END of epoch loop
 
         # End
@@ -387,7 +438,7 @@ class TrainerSetup:
 
             preds = self.model.predict(input_data)
 
-            loss_val = self.loss_function(hires, preds)
+            loss_val, mse, divloss = self.loss_function(hires, preds, mask)
             rel_loss = self.accuracy_function(hires, preds, mask)
             # Do only 1 batch
             break
@@ -413,4 +464,4 @@ class TrainerSetup:
             h5util.save_predictions(self.model_dir, quicksave_filename, "venc", venc, compression='gzip')
             h5util.save_predictions(self.model_dir, quicksave_filename, "mask", mask, compression='gzip')
         
-        return loss_val, rel_loss
+        return loss_val, rel_loss, mse, divloss
