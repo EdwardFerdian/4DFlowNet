@@ -1,7 +1,4 @@
 import numpy as np
-import tensorflow as tf
-import time
-import h5py
 from Network.PatchHandler3D import PatchHandler3D
 from Network.TrainerSetup import TrainerSetup
 
@@ -24,7 +21,7 @@ if __name__ == "__main__":
     
     # Hyperparameters optimisation variables
     initial_learning_rate = 1e-4
-    epochs =  150
+    epochs =  100
     batch_size = 20
     mask_threshold = 0.6
 
