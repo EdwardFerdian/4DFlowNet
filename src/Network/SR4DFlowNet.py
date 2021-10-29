@@ -37,13 +37,14 @@ class SR4DFlowNet():
 
         # 3 separate path version
         u_path = conv3d(rb, 3, channel_nr, 'SYMMETRIC', 'relu')
-        u_path = conv3d(u_path, 3, 1, 'SYMMETRIC', 'tanh')
+        u_path = conv3d(u_path, 3, 1, 'SYMMETRIC', None)
 
         v_path = conv3d(rb, 3, channel_nr, 'SYMMETRIC', 'relu')
-        v_path = conv3d(v_path, 3, 1, 'SYMMETRIC', 'tanh')
+        v_path = conv3d(v_path, 3, 1, 'SYMMETRIC', None)
 
         w_path = conv3d(rb, 3, channel_nr, 'SYMMETRIC', 'relu')
-        w_path = conv3d(w_path, 3, 1, 'SYMMETRIC', 'tanh')
+        w_path = conv3d(w_path, 3, 1, 'SYMMETRIC', None)
+        
 
         b_out = tf.keras.layers.concatenate([u_path, v_path, w_path])
 
