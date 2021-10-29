@@ -13,11 +13,11 @@ import os
 from .SR4DFlowNet import SR4DFlowNet
 from . import utility, h5util, loss_utils
 
-class TrainerSetup:
+class TrainerController:
     # constructor
     def __init__(self, patch_size, res_increase, initial_learning_rate=1e-4, quicksave_enable=True, network_name='4DFlowNet', low_resblock=8, hi_resblock=4):
         """
-            TrainerSetup constructor
+            TrainerController constructor
             Setup all the placeholders, network graph, loss functions and optimizer here.
         """
         self.div_weight = 0 # Weighting for divergence loss

@@ -1,6 +1,6 @@
 import numpy as np
 from Network.PatchHandler3D import PatchHandler3D
-from Network.TrainerSetup import TrainerSetup
+from Network.TrainerController import TrainerController
 
 def load_indexes(index_file):
     """
@@ -57,6 +57,6 @@ if __name__ == "__main__":
 
     # ------- Main Network ------
     print(f"4DFlowNet Patch {patch_size}, lr {initial_learning_rate}, batch {batch_size}")
-    network = TrainerSetup(patch_size, res_increase, initial_learning_rate, QUICKSAVE, network_name, low_resblock, hi_resblock)
+    network = TrainerController(patch_size, res_increase, initial_learning_rate, QUICKSAVE, network_name, low_resblock, hi_resblock)
     network.init_model_dir()
     network.train_network(trainset, valset, n_epoch=epochs, testset=testset)
