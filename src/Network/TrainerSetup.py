@@ -48,9 +48,7 @@ class TrainerSetup:
         self.predictions = net.build_network(u, v, w, u_mag, v_mag, w_mag, low_resblock, hi_resblock)
         self.model = tf.keras.Model(input_layer, self.predictions)
 
-        # ===== Loss function =====
-        print(f"Divergence loss2 * {self.div_weight}")
-
+        # ===== Metrics =====
         self.loss_metrics = dict([
             ('train_loss', tf.keras.metrics.Mean(name='train_loss')),
             ('val_loss', tf.keras.metrics.Mean(name='val_loss')),
@@ -64,6 +62,9 @@ class TrainerSetup:
             ('l2_reg_loss', tf.keras.metrics.Mean(name='l2_reg_loss')),
         ])
         self.accuracy_metric = 'val_loss'
+        
+        print(f"Divergence loss2 * {self.div_weight}")
+        print(f"Accuracy metric: {self.accuracy_metric}")
 
         # learning rate and training optimizer
         self.learning_rate = initial_learning_rate
@@ -85,13 +86,11 @@ class TrainerSetup:
             Calculate Total Loss function
             Loss = MSE + weight * div_loss2
         """
-        u,v,w = y_true[:,:,:,:,0],y_true[:,:,:,:,1], y_true[:,:,:,:,2]
-        u_pred,v_pred,w_pred = y_pred[:,:,:,:,0],y_pred[:,:,:,:,1], y_pred[:,:,:,:,2]
+        u,v,w = y_true[...,0],y_true[...,1], y_true[...,2]
+        u_pred,v_pred,w_pred = y_pred[...,0],y_pred[...,1], y_pred[...,2]
 
         mse = self.calculate_mse(u,v,w, u_pred,v_pred,w_pred)
 
-        
-        
         # if mask is not None:
         # === Separate mse ===
         non_fluid_mask = tf.less(mask, tf.constant(0.5))
@@ -112,7 +111,6 @@ class TrainerSetup:
         # divergence_loss = loss_utils.calculate_divergence_loss2(u,v,w, u_pred,v_pred,w_pred)
         # divergence_loss = self.div_weight * divergence_loss
 
-
         # fluid_divloss = divergence_loss * mask
         # fluid_divloss = tf.reduce_sum(fluid_divloss, axis=[1,2,3]) / (tf.reduce_sum(mask, axis=[1,2,3]) + epsilon)
 
@@ -121,10 +119,6 @@ class TrainerSetup:
 
         # divergence_loss = fluid_divloss + non_fluid_divloss
         divergence_loss = 0
-
-
-        # Custom loss
-        # total_loss = mse + tf.reduce_mean(divergence_loss)
 
         # standard without masking
         total_loss = mse + divergence_loss
@@ -150,8 +144,8 @@ class TrainerSetup:
         """
             Calculate relative speed error
         """
-        u,v,w = y_true[:,:,:,:,0],y_true[:,:,:,:,1], y_true[:,:,:,:,2]
-        u_pred,v_pred,w_pred = y_pred[:,:,:,:,0],y_pred[:,:,:,:,1], y_pred[:,:,:,:,2]
+        u,v,w = y_true[...,0],y_true[...,1], y_true[...,2]
+        u_pred,v_pred,w_pred = y_pred[...,0],y_pred[...,1], y_pred[...,2]
 
         return loss_utils.calculate_relative_error(u_pred, v_pred, w_pred, u, v, w, mask)
 
@@ -260,16 +254,11 @@ class TrainerSetup:
         self.loss_metrics[f'{metric_set}_mse'].update_state(mse)
         self.loss_metrics[f'{metric_set}_div'].update_state(divloss)
         self.loss_metrics[f'{metric_set}_accuracy'].update_state(rel_error)
-
-        # self.loss_metrics[f'{metric_set}_wall_loss'].update_state(wall_loss)
-        # self.loss_metrics[f'{metric_set}_nonwall_loss'].update_state(nonwall_loss)
-
         return loss
 
     def reset_metrics(self):
         for key in self.loss_metrics.keys():
             self.loss_metrics[key].reset_states()
-
 
     def train_network(self, trainset, valset, n_epoch, testset=None):
         """
@@ -314,7 +303,7 @@ class TrainerSetup:
             # Get the loss values from the loss_metrics dict
             for key, value in self.loss_metrics.items():
                 # TODO: handle formatting here
-                loss_values.append(f'{value.result():.7f}')
+                loss_values.append(f'{value.result():.5f}')
             loss_str = ','.join(loss_values)
             log_line = f"{epoch+1},{loss_str},{self.optimizer.lr.numpy():.6f},{time.time()-start_loop:.1f}"
             
@@ -342,8 +331,6 @@ class TrainerSetup:
             # Logging
             print(message)
             utility.log_to_file(self.logfile, log_line+"\n")
-
-            
             # /END of epoch loop
 
         # End
@@ -447,9 +434,9 @@ class TrainerSetup:
         h5util.save_predictions(self.model_dir, quicksave_filename, "epoch", np.asarray([epoch_nr]), compression='gzip')
 
         preds = np.expand_dims(preds, 0) # Expand dim to [epoch_nr, batch, ....]
-        h5util.save_predictions(self.model_dir, quicksave_filename, "u", preds[:, :,:,:,:, 0], compression='gzip')
-        h5util.save_predictions(self.model_dir, quicksave_filename, "v", preds[:, :,:,:,:, 1], compression='gzip')
-        h5util.save_predictions(self.model_dir, quicksave_filename, "w", preds[:, :,:,:,:, 2], compression='gzip')
+        h5util.save_predictions(self.model_dir, quicksave_filename, "u", preds[...,0], compression='gzip')
+        h5util.save_predictions(self.model_dir, quicksave_filename, "v", preds[...,1], compression='gzip')
+        h5util.save_predictions(self.model_dir, quicksave_filename, "w", preds[...,2], compression='gzip')
 
         if epoch_nr == 1:
             # Save the actual data only for the first epoch
