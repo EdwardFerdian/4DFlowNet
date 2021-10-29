@@ -44,10 +44,11 @@ def calculate_gradient(image, kernel):
     conv = tf.squeeze(conv, 4)
     return conv
 
-def calculate_divergence(u, v, w, kernels):
+def calculate_divergence(u, v, w):
     """
         Calculate divergence for the corresponding velocity component
     """
+    kernels = create_divergence_kernels()
     dudx = calculate_gradient(u, kernels[0])
     dvdy = calculate_gradient(v, kernels[1])
     dwdz = calculate_gradient(w, kernels[2])
@@ -55,9 +56,8 @@ def calculate_divergence(u, v, w, kernels):
     return (dudx, dvdy, dwdz)
 
 def calculate_divergence_loss2(u, v, w, u_pred, v_pred, w_pred):
-    div_kernels = create_divergence_kernels()
-    (divpx, divpy, divpz) = calculate_divergence(u_pred, v_pred, w_pred, div_kernels)
-    (divx, divy, divz) = calculate_divergence(u, v, w, div_kernels)
+    (divpx, divpy, divpz) = calculate_divergence(u_pred, v_pred, w_pred)
+    (divx, divy, divz) = calculate_divergence(u, v, w)
     
     return (divpx - divx) ** 2 + (divpy - divy) ** 2 + (divpz - divz) ** 2
 
@@ -94,11 +94,10 @@ def calculate_relative_error(u_pred, v_pred, w_pred, u_hi, v_hi, w_hi, binary_ma
 
     # Calculate the mean from the total non zero accuracy, divided by the masked area
     # reduce first to the 'batch' axis
-    mean_err = tf.reduce_sum(corrected_speed_loss, axis=[1,2,3]) / (tf.reduce_sum(binary_mask, axis=[1,2,3]) + epsilon) 
+    mean_err = tf.reduce_sum(corrected_speed_loss, axis=[1,2,3]) / (tf.reduce_sum(binary_mask, axis=[1,2,3]) + 1) 
 
     # now take the actual mean
-    
-    mean_err = tf.reduce_mean(mean_err) * 100 # in percentage
-
+    # mean_err = tf.reduce_mean(mean_err) * 100 # in percentage
+    mean_err = mean_err * 100
 
     return mean_err
