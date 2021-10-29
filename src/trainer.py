@@ -19,6 +19,11 @@ if __name__ == "__main__":
     QUICKSAVE = True
     benchmark_file = '{}/benchmark.csv'.format(data_dir)
     
+    restore = False
+    if restore:
+        model_dir = "../models/4DFlowNet"
+        model_file = "4DFlowNet-best.h5"
+
     # Hyperparameters optimisation variables
     initial_learning_rate = 2e-4
     epochs =  60
@@ -59,4 +64,10 @@ if __name__ == "__main__":
     print(f"4DFlowNet Patch {patch_size}, lr {initial_learning_rate}, batch {batch_size}")
     network = TrainerController(patch_size, res_increase, initial_learning_rate, QUICKSAVE, network_name, low_resblock, hi_resblock)
     network.init_model_dir()
+
+    if restore:
+        print(f"Restoring model {model_file}...")
+        network.restore_model(model_dir, model_file)
+        print("Learning rate", network.optimizer.lr.numpy())
+
     network.train_network(trainset, valset, n_epoch=epochs, testset=testset)
