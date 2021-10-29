@@ -96,13 +96,15 @@ def conv3d(x, kernel_size, filters, padding='SYMMETRIC', activation=None, initia
         For tf padding, refer to: https://www.tensorflow.org/api_docs/python/tf/pad
 
     """
+    reg_l2 = tf.keras.regularizers.l2(5e-7)
+
     if padding == 'SYMMETRIC' or padding == 'REFLECT':
         p = (kernel_size - 1) // 2
         x = tf.pad(x, [[0,0],[p,p],[p,p], [p,p],[0,0]], padding)
-        x = tf.keras.layers.Conv3D(filters, kernel_size, activation=activation, kernel_initializer=initialization, use_bias=use_bias)(x)
+        x = tf.keras.layers.Conv3D(filters, kernel_size, activation=activation, kernel_initializer=initialization, use_bias=use_bias, kernel_regularizer=reg_l2)(x)
     else:
         assert padding in ['SAME', 'VALID']
-        x = tf.keras.layers.Conv3D(filters, kernel_size, activation=activation, kernel_initializer=initialization, use_bias=use_bias)(x)
+        x = tf.keras.layers.Conv3D(filters, kernel_size, activation=activation, kernel_initializer=initialization, use_bias=use_bias, kernel_regularizer=reg_l2)(x)
     return x
     
 
