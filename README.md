@@ -1,7 +1,7 @@
 # 4DFlowNet
 Super Resolution 4D Flow MRI using Residual Neural Network
 
-This is an implementation of the paper [4DFlowNet: Super-Resolution 4D Flow MRI Using Deep Learning and Computational Fluid Dynamics](https://www.frontiersin.org/articles/10.3389/fphy.2020.00138/full) using Tensorflow 2.2.0 with Keras.
+This is an implementation of the paper [4DFlowNet: Super-Resolution 4D Flow MRI](https://www.frontiersin.org/articles/10.3389/fphy.2020.00138/full) using Tensorflow 2.2.0 with Keras.
 
 ## Updates 4DFlowNet v2.0
 - Loss function has been updated (MSE fluid + MSE non fluid)
@@ -10,15 +10,19 @@ This is an implementation of the paper [4DFlowNet: Super-Resolution 4D Flow MRI 
 - Evaluation metrics updated
 - Final activation layer switch to linear to allow phase aliasing
 
+These changes are implemented for [Cerebrovascular super-resolution 4D Flow MRI](https://www.biorxiv.org/content/10.1101/2021.08.25.457611v1.full)
+
 ## Manuscript version
 
 Original network implementation from the manuscript can be found under the following branches:
 - release/manuscript_version (for TF2.0)
 - tf1.8 (for Tensorflow 1.8.0)
 
-The pre-trained networks weights (for both Tensorflow versions) here:
+The pre-trained networks weights can be found here:
 
-[4DFlowNet pre-trained weights](https://auckland.figshare.com/articles/Super_Resolution_4DFlow_MRI/12253424)
+- [Original 4DFlowNet pre-trained weights](https://auckland.figshare.com/articles/Super_Resolution_4DFlow_MRI/12253424)
+
+- [Cerebrovascular 4DFlowNet weights](https://auckland.figshare.com/articles/software/Cerebrovascular_4DFlowNet_-_Super_Resolution_4D_Flow_MRI/19158122)
 
 
 # Example results
