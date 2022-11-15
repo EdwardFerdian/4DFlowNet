@@ -220,7 +220,7 @@ def rotate90(u, v, w, plane, k, is_phase_img=True):
             temp = v
             v = w
             if is_phase_img:
-                w *= -1
+                v *= -1
             w = temp
 
             
