@@ -24,6 +24,8 @@ The pre-trained networks weights can be found here:
 
 - [Cerebrovascular 4DFlowNet weights](https://auckland.figshare.com/articles/software/Cerebrovascular_4DFlowNet_-_Super_Resolution_4D_Flow_MRI/19158122)
 
+Training dataset is available for download from:
+- [Aortic CFD dataset](https://auckland.figshare.com/articles/dataset/4DFlowNet_-_high_resolution_aortic_CFD_dataset/24424888)
 
 # Example results
 
